@@ -1,0 +1,278 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReactionType {
+  LIKE
+  LOVE
+  HAHA
+  WOW
+  SAD
+  ANGRY
+}
+
+enum NotificationType {
+  like
+  comment
+  follow
+  friend_request
+  friend_accept
+  page_follow
+  page_like
+  mention
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum Status {
+  pending
+  accepted
+  rejected
+  expired
+}
+
+enum AccountStatus {
+  active
+  suspended
+  deleted
+}
+
+enum PageRole {
+  member
+  admin
+  moderator
+  owner
+}
+
+enum PostType {
+  user
+  page
+}
+
+model User {
+  id             String   @id @default(cuid())
+  username       String   @unique
+  email          String   @unique
+  password       String
+  name           String
+  bio            String?
+  gender         Gender?
+  birthdate      DateTime?
+  location       String?
+  relationshipStatus String? 
+  studyField     String?
+  relationships    String? 
+  profilePicture String?
+  accountStatus  AccountStatus @default(active)
+  isProUser     Boolean  @default(false)
+  isAdmin        Boolean  @default(false)
+  coverPicture   String? @db.LongText
+  isVerified     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  posts       Post[]
+  stories     Story[]
+  followers   Follower[]   @relation("FollowedBy")
+  following   Follower[]   @relation("Following")
+  friends     Friendship[] @relation("FriendsA")
+  friendsWith Friendship[] @relation("FriendsB")
+  pageMembers PageMember[]
+  ownedPages  Page[]       @relation("OwnedPages")
+  pageFollowers PageFollower[] @relation("UserPageFollowers")
+  comments    Comment[]
+  reactions   Reaction[]
+  notifications Notification[] @relation("UserNotifications")
+  sentNotifications Notification[] @relation("NotificationSender")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   // Recipient
+  senderId  String?  // User who triggered the notification
+  type      NotificationType 
+  title     String
+  content   String? @db.LongText
+  isRead    Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  // Related entities (optional fields)
+  postId    String? // Optional, if the notification is related to a post
+  commentId String? // Optional, if the notification is related to a comment
+  pageId    String? // Optional, if the notification is related to a page
+
+  user      User     @relation("UserNotifications", fields: [userId], references: [id])
+  sender    User?    @relation("NotificationSender", fields: [senderId], references: [id])
+  post      Post?    @relation(fields: [postId], references: [id])
+  comment   Comment? @relation(fields: [commentId], references: [id])
+  page      Page?    @relation(fields: [pageId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model Sponsored {
+  id        String   @id @default(cuid())
+  title     String
+  content   String? @db.LongText
+  imageUrl  String? @db.LongText
+  link      String? @db.LongText
+  isActive  Status @default(pending)
+  startDate DateTime @default(now())
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  content   String? @db.LongText
+  authorId  String?  // User author (optional)
+  pageId    String?  // Page author (optional)
+  type      PostType @default(user)
+  createdAt DateTime @default(now())
+
+  author   User?      @relation(fields: [authorId], references: [id])
+  page     Page?      @relation("PagePosts", fields: [pageId], references: [id])
+  media    Media[]
+  comments Comment[]
+  reactions Reaction[]
+  notifications Notification[]
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  url       String @db.LongText
+  type      String // image, video, etc.
+  postId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model Story {
+  id        String   @id @default(cuid())
+  mediaUrl  String
+  caption   String?
+  expiresAt DateTime
+  authorId  String
+
+  author User @relation(fields: [authorId], references: [id])
+}
+
+model Follower {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Following", fields: [followerId], references: [id])
+  following User @relation("FollowedBy", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userAId   String
+  userBId   String
+  status    String // pending, accepted, rejected
+  createdAt DateTime @default(now())
+
+  userA User @relation("FriendsA", fields: [userAId], references: [id])
+  userB User @relation("FriendsB", fields: [userBId], references: [id])
+
+  @@unique([userAId, userBId])
+}
+
+model Page {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  coverImage  String? @db.LongText
+  profileImage String? @db.LongText
+  ownerId     String
+  category    String?
+  isVerified  Boolean @default(false)
+  isPublic    Boolean @default(true)
+  address     String?
+  phone       String?
+  website     String? @db.LongText
+  email       String? @db.LongText
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner     User         @relation("OwnedPages", fields: [ownerId], references: [id])
+  members   PageMember[]
+  followers PageFollower[]
+  posts     Post[]       @relation("PagePosts")
+  notifications Notification[]
+}
+
+model PageMember {
+  id     String   @id @default(cuid())
+  userId String
+  pageId String
+  role   PageRole @default(member)
+  createdAt DateTime @default(now())
+  status Status @default(pending)
+
+  user User @relation(fields: [userId], references: [id])
+  page Page @relation(fields: [pageId], references: [id])
+
+  @@unique([userId, pageId])
+}
+
+model Reaction {
+  id        String       @id @default(cuid())
+  userId    String
+  postId    String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+  post Post? @relation(fields: [postId], references: [id])
+
+
+  @@unique([userId, postId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  post Post @relation(fields: [postId], references: [id])
+  notifications Notification[]
+}
+
+model PageFollower {
+  id        String   @id @default(cuid())
+  userId    String
+  pageId    String
+  createdAt DateTime @default(now())
+
+  user User @relation("UserPageFollowers", fields: [userId], references: [id])
+  page Page @relation(fields: [pageId], references: [id])
+
+  @@unique([userId, pageId])
+}

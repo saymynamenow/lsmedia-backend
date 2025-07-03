@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `page` ADD COLUMN `address` VARCHAR(191) NULL,
+    ADD COLUMN `email` LONGTEXT NULL,
+    ADD COLUMN `phone` VARCHAR(191) NULL,
+    ADD COLUMN `website` LONGTEXT NULL;
