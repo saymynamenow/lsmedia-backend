@@ -112,7 +112,7 @@ router.patch(
         "locaction",
         "studyField",
         "relationshipStatus",
-        "relationship",
+        "relationships",
         "birthdate",
       ];
       const data = {};
