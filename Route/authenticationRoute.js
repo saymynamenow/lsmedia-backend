@@ -10,10 +10,12 @@ import {
   generateRefreshToken,
   clearAuthTokens,
 } from "../middleware/authenticantion.js";
+import { uploadIdCard } from "../config/multer.js";
 const router = express.Router();
 
 router.post(
   "/register",
+  uploadIdCard.single("idCard"),
   [
     body("username").notEmpty().withMessage("Username is required"),
     body("email").isEmail().withMessage("Invalid email format"),
@@ -33,6 +35,11 @@ router.post(
       const { username, email, password, name, bio, gender, birthdate } =
         req.body;
       const hashpassword = await bcrypt.hash(password, 10);
+
+      if (!req.file) {
+        return res.status(400).json({ message: "ID card is required" });
+      }
+
       const user = await prisma.user.create({
         data: {
           username,
@@ -42,14 +49,23 @@ router.post(
           bio,
           gender,
           birthdate: new Date(birthdate),
+          idCard: req.file.filename,
         },
       });
+
       if (!user) {
         return res.status(500).json({ message: "User registration failed" });
       } else {
-        return res
-          .status(201)
-          .json({ message: "User registered successfully" });
+        return res.status(201).json({
+          message: "User registered successfully",
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            name: user.name,
+            idCard: user.idCard,
+          },
+        });
       }
     } catch (error) {
       if (error.code === "P2002") {
@@ -93,6 +109,7 @@ router.post(
           id: user.id,
           email: user.email,
           username: user.username,
+          isAdmin: user.isAdmin,
         };
 
         // Generate tokens using the helper functions
@@ -102,7 +119,9 @@ router.post(
         // Set cookies with proper configuration
         res.cookie("token", token, {
           httpOnly: true,
-          secure: true,
+          // secure: process.env.NODE_ENV === "production",
+          secure: "false",
+          // sameSite: process.env.NODE_ENV === "production" ? "strict" : "none",
           sameSite: "none",
           maxAge: 60 * 60 * 1000, // 15 minutes
         });
@@ -137,16 +156,9 @@ router.get("/me", authentication, async (req, res) => {
     const userId = req.user.userId;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        profilePicture: true,
-        isAdmin: true,
-        isProUser: true,
-        isVerified: true,
-        createdAt: true,
+      omit: {
+        password: true,
+        idCard: true,
       },
     });
     if (!user) {

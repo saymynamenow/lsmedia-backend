@@ -51,6 +51,8 @@ enum Status {
 
 enum AccountStatus {
   active
+  pending
+  inactive
   suspended
   deleted
 }
@@ -67,6 +69,8 @@ enum PostType {
   page
 }
 
+
+
 model User {
   id             String   @id @default(cuid())
   username       String   @unique
@@ -81,13 +85,15 @@ model User {
   studyField     String?
   relationships    String? 
   profilePicture String?
-  accountStatus  AccountStatus @default(active)
+  accountStatus  AccountStatus @default(pending)
   isProUser     Boolean  @default(false)
   isAdmin        Boolean  @default(false)
   coverPicture   String? @db.LongText
   isVerified     Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  idCard         String? @db.LongText 
+  
 
   posts       Post[]
   stories     Story[]
@@ -102,6 +108,8 @@ model User {
   reactions   Reaction[]
   notifications Notification[] @relation("UserNotifications")
   sentNotifications Notification[] @relation("NotificationSender")
+  verificationRequests VerificationRequest[]
+  reviewedVerifications VerificationRequest[] @relation("VerificationReviewer")
   @@map("user")
 }
 
@@ -290,4 +298,22 @@ model PageFollower {
 
   @@unique([userId, pageId])
   @@map("pagefollower")
+}
+
+model VerificationRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  reason      String   @db.LongText
+  documents   String?  @db.LongText // JSON string of document URLs
+  status      Status   @default(pending)
+  reviewedBy  String?  // Admin ID who reviewed
+  reviewNote  String?  @db.LongText // Admin's note
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  reviewedAt  DateTime?
+
+  user        User     @relation(fields: [userId], references: [id])
+  reviewer    User?    @relation("VerificationReviewer", fields: [reviewedBy], references: [id])
+
+  @@map("verificationrequest")
 }

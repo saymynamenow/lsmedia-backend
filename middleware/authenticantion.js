@@ -8,6 +8,7 @@ const generateAccessToken = (user) => {
       userId: user.id,
       email: user.email,
       username: user.username,
+      isAdmin: user.isAdmin || false,
     },
     process.env.JWT_SECRET,
     { expiresIn: "1h" } // Short-lived access token
@@ -72,6 +73,7 @@ const authentication = (req, res, next) => {
               id: refreshDecoded.userId,
               email: refreshDecoded.email,
               username: refreshDecoded.username,
+              isAdmin: refreshDecoded.isAdmin || false,
             };
 
             const newAccessToken = generateAccessToken(userData);

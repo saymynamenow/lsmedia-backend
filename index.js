@@ -14,6 +14,7 @@ import { sponsoredRouter } from "./Route/sponsoredRoute.js";
 import { pageRoute } from "./Route/pageRoute.js";
 import { notificationRouter } from "./Route/notificationRoute.js";
 import { searchRouter } from "./Route/searchRoute.js";
+import { verificationRoute } from "./Route/verificationRoute.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -43,9 +44,22 @@ try {
 } catch (error) {
   console.error("❌ Error reading uploads directory:", error.message);
 }
+
+const allowedOrigins = [
+  "https://media.fiqrianandahakin.my.id",
+  "http://localhost:5173",
+];
 app.use(
   cors({
-    origin: "https://media.fiqrianandahakin.my.id",
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
@@ -67,6 +81,7 @@ app.use("/api/sponsored", authentication, sponsoredRouter);
 app.use("/api/page", authentication, pageRoute);
 app.use("/api/notifications", authentication, notificationRouter);
 app.use("/api/search", authentication, searchRouter);
+app.use("/api/verification", authentication, verificationRoute);
 
 app.listen(env.DEV_PORT, () => {
   console.log(`🚀 Server is running on port ${env.DEV_PORT}`);

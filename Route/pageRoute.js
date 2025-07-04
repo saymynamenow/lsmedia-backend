@@ -229,8 +229,6 @@ router.post(
 
       const { name, description, category, isPublic } = req.body;
       const ownerId = req.user.userId;
-
-      console.log("Files : ", req.files);
       // Get uploaded files
       const profileImage = req.files?.profileImage?.[0];
       const coverImage = req.files?.coverImage?.[0];
