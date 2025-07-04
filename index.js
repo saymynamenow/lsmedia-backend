@@ -45,7 +45,7 @@ try {
 }
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "http://media.fiqrianandahakin.my.id",
     credentials: true,
   })
 );
