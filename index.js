@@ -45,10 +45,7 @@ try {
   console.error("❌ Error reading uploads directory:", error.message);
 }
 
-const allowedOrigins = [
-  "https://media.fiqrianandahakin.my.id",
-  "http://localhost:5173",
-];
+const allowedOrigins = ["https://media.fiqrianandahakin.my.id"];
 app.use(
   cors({
     origin: function (origin, callback) {
