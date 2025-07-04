@@ -102,6 +102,7 @@ model User {
   reactions   Reaction[]
   notifications Notification[] @relation("UserNotifications")
   sentNotifications Notification[] @relation("NotificationSender")
+  @@map("user")
 }
 
 model Notification {
@@ -127,6 +128,7 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([createdAt])
+  @@map("notification")
 }
 
 model Sponsored {
@@ -140,6 +142,7 @@ model Sponsored {
   endDate   DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@map("sponsored")
 }
 
 model Post {
@@ -156,6 +159,7 @@ model Post {
   comments Comment[]
   reactions Reaction[]
   notifications Notification[]
+  @@map("post")
 }
 
 model Media {
@@ -166,6 +170,7 @@ model Media {
   createdAt DateTime @default(now())
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@map("media")
 }
 
 model Story {
@@ -176,6 +181,7 @@ model Story {
   authorId  String
 
   author User @relation(fields: [authorId], references: [id])
+  @@map("story")
 }
 
 model Follower {
@@ -188,6 +194,7 @@ model Follower {
   following User @relation("FollowedBy", fields: [followingId], references: [id])
 
   @@unique([followerId, followingId])
+  @@map("follower")
 }
 
 model Friendship {
@@ -201,6 +208,7 @@ model Friendship {
   userB User @relation("FriendsB", fields: [userBId], references: [id])
 
   @@unique([userAId, userBId])
+  @@map("friendship")
 }
 
 model Page {
@@ -225,6 +233,7 @@ model Page {
   followers PageFollower[]
   posts     Post[]       @relation("PagePosts")
   notifications Notification[]
+  @@map("page")
 }
 
 model PageMember {
@@ -239,6 +248,7 @@ model PageMember {
   page Page @relation(fields: [pageId], references: [id])
 
   @@unique([userId, pageId])
+  @@map("pagemember")
 }
 
 model Reaction {
@@ -253,6 +263,7 @@ model Reaction {
 
 
   @@unique([userId, postId])
+  @@map("reaction")
 }
 
 model Comment {
@@ -265,6 +276,7 @@ model Comment {
   user User @relation(fields: [userId], references: [id])
   post Post @relation(fields: [postId], references: [id])
   notifications Notification[]
+  @@map("comment")
 }
 
 model PageFollower {
@@ -277,4 +289,5 @@ model PageFollower {
   page Page @relation(fields: [pageId], references: [id])
 
   @@unique([userId, pageId])
+  @@map("pagefollower")
 }
