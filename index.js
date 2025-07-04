@@ -45,7 +45,7 @@ try {
 }
 app.use(
   cors({
-    origin: "http://media.fiqrianandahakin.my.id",
+    origin: "https://media.fiqrianandahakin.my.id",
     credentials: true,
   })
 );
