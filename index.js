@@ -58,7 +58,7 @@ app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api/auth", authenticationRoute);
-app.use("/api/", authentication, userRoute);
+app.use("/api/users", authentication, userRoute);
 app.use("/api/posts", authentication, postsRouter);
 app.use("/api/like", authentication, likeRouter);
 app.use("/api/comment/", authentication, commentRouter);
