@@ -103,14 +103,14 @@ router.post(
         res.cookie("token", token, {
           httpOnly: true,
           secure: false,
-          sameSite: "lax",
+          sameSite: "none",
           maxAge: 60 * 60 * 1000, // 15 minutes
         });
 
         res.cookie("refreshToken", refreshToken, {
           httpOnly: true,
           secure: false,
-          sameSite: "lax",
+          sameSite: "none",
           maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         });
         return res.status(200).json({ message: "Login successful" });
