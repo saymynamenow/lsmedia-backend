@@ -120,7 +120,7 @@ router.post(
         res.cookie("token", token, {
           httpOnly: true,
           // secure: process.env.NODE_ENV === "production",
-          secure: "false",
+          secure: true,
           // sameSite: process.env.NODE_ENV === "production" ? "strict" : "none",
           sameSite: "none",
           maxAge: 60 * 60 * 1000, // 15 minutes
