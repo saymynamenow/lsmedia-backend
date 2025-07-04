@@ -4,7 +4,7 @@ import { query, param, validationResult } from "express-validator";
 const router = express.Router();
 
 router.get(
-  "/users/search",
+  "/search",
   [query("name").notEmpty().withMessage("Query is required")],
   async (req, res) => {
     try {
@@ -40,7 +40,7 @@ router.get(
 );
 
 router.get(
-  "/users/:id",
+  "/:id",
   [param("id").isUUID().withMessage("User ID is required")],
   async (req, res) => {
     try {
@@ -76,7 +76,7 @@ router.get(
   }
 );
 
-router.patch("/users/:id", async (req, res) => {
+router.patch("/:id", async (req, res) => {
   try {
     const userId = req.params.id;
     const allowedFields = ["username", "name", "bio", "profilePicture"];
@@ -113,7 +113,7 @@ router.patch("/users/:id", async (req, res) => {
 });
 
 router.get(
-  "/users/:id/followers",
+  "/:id/followers",
   [param("id").notEmpty().withMessage("User ID is required")],
   async (req, res) => {
     try {
@@ -134,7 +134,7 @@ router.get(
   }
 );
 router.get(
-  "/users/:id/following",
+  "/:id/following",
   [param("id").notEmpty().withMessage("User ID is required")],
   async (req, res) => {
     try {
@@ -156,7 +156,7 @@ router.get(
 );
 
 router.get(
-  "/users/:id/friends",
+  "/:id/friends",
   [param("id").notEmpty().withMessage("User ID is required")],
   async (req, res) => {
     try {
@@ -181,7 +181,7 @@ router.get(
 );
 
 router.get(
-  "/users/",
+  "/",
   [
     query("page")
       .optional()
