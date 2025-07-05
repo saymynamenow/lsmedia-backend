@@ -95,7 +95,6 @@ router.patch(
 
       const userId = req.params.id;
       const currentUserId = req.user.userId;
-
       // Check if user is trying to update their own profile or is admin
       if (userId !== currentUserId && !req.user.isAdmin) {
         return res
@@ -109,7 +108,7 @@ router.patch(
         "bio",
         "profilePicture",
         "coverPicture",
-        "locaction",
+        "location",
         "studyField",
         "relationshipStatus",
         "relationships",

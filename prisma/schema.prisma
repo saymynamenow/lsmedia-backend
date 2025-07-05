@@ -167,7 +167,21 @@ model Post {
   comments Comment[]
   reactions Reaction[]
   notifications Notification[]
+  boostedPosts BoostedPost[]
   @@map("post")
+}
+
+model BoostedPost {
+  id        String   @id @default(cuid())
+  postId    String
+  startDate DateTime @default(now())
+  endDate   DateTime?
+  status    Status @default(accepted)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post Post @relation(fields: [postId], references: [id])
+  @@map("boosted_post")
 }
 
 model Media {

@@ -177,4 +177,75 @@ const uploadVerificationDocs = multer({
   },
 });
 
-export { upload, uploadIdCard, uploadVerificationDocs };
+// Create a separate multer configuration for post media
+const postMediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const postMediaDir = path.join(__dirname, "..", "uploads", "post_media");
+    if (!fs.existsSync(postMediaDir)) {
+      fs.mkdirSync(postMediaDir, { recursive: true });
+      console.log("✅ Multer: Created post_media directory at:", postMediaDir);
+    }
+    console.log("📁 Multer post media destination:", postMediaDir);
+    cb(null, postMediaDir);
+  },
+  filename: (req, file, cb) => {
+    // Use userId and timestamp for filename
+    const userId = req.user?.userId || "unknown";
+    const timestamp = Date.now();
+    const uniqueSuffix = Math.round(Math.random() * 1e9);
+    const filename = `post_${userId}_${timestamp}_${uniqueSuffix}${path.extname(
+      file.originalname
+    )}`;
+    console.log("📄 Generated post media filename:", filename);
+    cb(null, filename);
+  },
+});
+
+// Post media file filter (allows images and videos)
+const postMediaFileFilter = (req, file, cb) => {
+  console.log("🔍 Post media file filter called - MIME type:", file.mimetype);
+  console.log("🔍 Original filename:", file.originalname);
+
+  // Allow images and videos
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "video/mp4",
+    "video/mpeg",
+    "video/quicktime",
+    "video/x-msvideo", // .avi
+    "video/webm",
+  ];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    console.log("✅ Post media file accepted:", file.originalname);
+    cb(null, true);
+  } else {
+    console.log(
+      "❌ Post media file rejected:",
+      file.originalname,
+      "- Only images and videos are allowed"
+    );
+    cb(
+      new Error(
+        "Only image files (JPEG, PNG, GIF, WebP) and video files (MP4, MPEG, QuickTime, AVI, WebM) are allowed!"
+      ),
+      false
+    );
+  }
+};
+
+// Create multer instance for post media
+const uploadPostMedia = multer({
+  storage: postMediaStorage,
+  fileFilter: postMediaFileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit for post media (videos can be larger)
+    files: 10, // Maximum 10 files per post
+  },
+});
+
+export { upload, uploadIdCard, uploadVerificationDocs, uploadPostMedia };

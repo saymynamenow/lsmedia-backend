@@ -2,7 +2,7 @@ import express from "express";
 import { body, query, param, validationResult, check } from "express-validator";
 import prisma from "../config/prismaConfig.js";
 import { authentication } from "../middleware/authenticantion.js";
-import { upload } from "../config/multer.js";
+import { upload, uploadPostMedia } from "../config/multer.js";
 import { NotificationService } from "../services/notificationService.js";
 
 const router = express.Router();
@@ -144,9 +144,9 @@ router.get(
       const where = search
         ? {
             OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { description: { contains: search, mode: "insensitive" } },
-              { category: { contains: search, mode: "insensitive" } },
+              { name: { contains: search } },
+              { description: { contains: search } },
+              { category: { contains: search } },
             ],
           }
         : {};
@@ -203,9 +203,22 @@ router.post(
     { name: "coverImage", maxCount: 1 },
   ]),
   [
-    body("name").notEmpty().withMessage("Page name is required"),
-    body("description").optional().isLength({ max: 500 }),
-    body("category").optional(),
+    body("name")
+      .notEmpty()
+      .withMessage("Page name is required")
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Page name must be between 2 and 100 characters")
+      .trim(),
+    body("description")
+      .optional()
+      .isLength({ max: 1000 })
+      .withMessage("Description must not exceed 1000 characters")
+      .trim(),
+    body("category")
+      .optional()
+      .isLength({ max: 50 })
+      .withMessage("Category must not exceed 50 characters")
+      .trim(),
     body("isPublic")
       .optional()
       .custom((value) => {
@@ -229,30 +242,84 @@ router.post(
 
       const { name, description, category, isPublic } = req.body;
       const ownerId = req.user.userId;
+
+      // Check if user already owns a page with the same name
+      const existingPage = await prisma.page.findFirst({
+        where: {
+          name: { equals: name.trim() },
+          ownerId,
+        },
+      });
+
+      if (existingPage) {
+        return res.status(400).json({
+          message: "You already have a page with this name",
+        });
+      }
+
       // Get uploaded files
       const profileImage = req.files?.profileImage?.[0];
       const coverImage = req.files?.coverImage?.[0];
 
       // Prepare page data
       const pageData = {
-        name,
-        description: description || null,
-        category: category || null,
+        name: name.trim(),
+        description: description?.trim() || null,
+        category: category?.trim() || null,
         isPublic: isPublic === "true" || isPublic === true,
         ownerId,
       };
 
       // Process and save image paths
       if (profileImage) {
-        pageData.profileImage = `${profileImage.filename}`;
+        pageData.profileImage = profileImage.filename;
       }
 
       if (coverImage) {
-        pageData.coverImage = `${coverImage.filename}`;
+        pageData.coverImage = coverImage.filename;
       }
 
-      const newPage = await prisma.page.create({
-        data: pageData,
+      // Use transaction to create page and add owner as follower atomically
+      const result = await prisma.$transaction(async (tx) => {
+        // Create the page
+        const newPage = await tx.page.create({
+          data: pageData,
+          include: {
+            owner: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                profilePicture: true,
+              },
+            },
+          },
+        });
+
+        // Add owner as a follower (only once)
+        await tx.pageFollower.create({
+          data: {
+            userId: ownerId,
+            pageId: newPage.id,
+          },
+        });
+
+        // Add owner as a member with owner role
+        await tx.pageMember.create({
+          data: {
+            userId: ownerId,
+            pageId: newPage.id,
+            role: "owner",
+            status: "accepted",
+          },
+        });
+
+        return newPage;
+      });
+
+      // Get the updated page with counts
+      const newPage = await prisma.page.findUnique({
+        where: { id: result.id },
         include: {
           owner: {
             select: {
@@ -264,18 +331,15 @@ router.post(
           },
           _count: {
             select: {
-              members: true,
+              members: {
+                where: {
+                  status: "accepted",
+                },
+              },
               followers: true,
               posts: true,
             },
           },
-        },
-      });
-
-      await prisma.pageFollower.create({
-        data: {
-          userId: ownerId,
-          pageId: newPage.id,
         },
       });
 
@@ -285,6 +349,25 @@ router.post(
       });
     } catch (error) {
       console.error("Error creating page:", error);
+
+      // Handle specific database errors
+      if (error.code === "P2002") {
+        if (error.meta?.target?.includes("name")) {
+          return res.status(400).json({
+            message: "A page with this name already exists",
+          });
+        }
+        return res.status(400).json({
+          message: "Page creation failed due to duplicate data",
+        });
+      }
+
+      if (error.code === "P2025") {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
       return res.status(500).json({ message: "Internal server error" });
     }
   }
@@ -641,7 +724,7 @@ router.delete(
       // Check if page exists
       const page = await prisma.page.findUnique({
         where: { id: pageId },
-        select: { id: true, name: true, ownerId: true },
+        select: { id: true, ownerId: true },
       });
 
       if (!page) {
@@ -1057,9 +1140,9 @@ router.post(
   "/:pageId/post",
   [
     param("pageId").notEmpty().withMessage("Page ID is required"),
-    body("content").notEmpty().withMessage("Post content is required"),
+    body("content").optional().trim(),
   ],
-  authentication,
+  uploadPostMedia.array("media", 10),
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -1070,6 +1153,14 @@ router.post(
       const { pageId } = req.params;
       const { content } = req.body;
       const userId = req.user.userId;
+      const uploadedFiles = req.files;
+
+      // Validate that at least content or media is provided
+      if (!content && (!uploadedFiles || uploadedFiles.length === 0)) {
+        return res.status(400).json({
+          message: "Post must have either content or media",
+        });
+      }
 
       // Check if user is member or owner of the page
       const [page, membership] = await Promise.all([
@@ -1101,13 +1192,26 @@ router.post(
         });
       }
 
-      // Create post
+      // Create post with media
       const post = await prisma.post.create({
         data: {
-          content,
+          content: content || "",
           pageId,
           type: "page",
           authorId: userId,
+          // Handle uploaded media files
+          ...(uploadedFiles && uploadedFiles.length > 0
+            ? {
+                media: {
+                  create: uploadedFiles.map((file) => ({
+                    type: file.mimetype.startsWith("image/")
+                      ? "image"
+                      : "video",
+                    url: `/post_media/${file.filename}`,
+                  })),
+                },
+              }
+            : {}),
         },
         include: {
           page: {
@@ -1136,6 +1240,7 @@ router.post(
       return res.status(201).json({
         message: "Post created successfully",
         post,
+        mediaCount: uploadedFiles ? uploadedFiles.length : 0,
       });
     } catch (error) {
       console.error("Error creating page posts:", error);
@@ -1736,7 +1841,7 @@ router.get(
       const [pages, totalCount] = await Promise.all([
         prisma.page.findMany({
           where: {
-            category: { contains: categoryName, mode: "insensitive" },
+            category: { contains: categoryName },
             isPublic: true,
           },
           include: {
@@ -1763,7 +1868,7 @@ router.get(
         }),
         prisma.page.count({
           where: {
-            category: { contains: categoryName, mode: "insensitive" },
+            category: { contains: categoryName, lte: "insensitive" },
             isPublic: true,
           },
         }),
@@ -1894,7 +1999,7 @@ router.get(
               },
             },
           },
-          orderBy: [{ isVerified: "desc" }, { createdAt: "desc" }],
+          orderBy: [{ isVerified: "asc" }, { createdAt: "desc" }],
           take: limit,
         });
 
@@ -1917,8 +2022,8 @@ router.get(
       const suggestions = await prisma.page.findMany({
         where: {
           OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { category: { contains: q, mode: "insensitive" } },
+            { name: { contains: q, lte: "insensitive" } },
+            { category: { contains: q, lte: "insensitive" } },
           ],
           isPublic: true,
         },
@@ -1961,5 +2066,84 @@ router.get(
 // Search pages by name (optimized for search bar)
 
 // Get user's own pending join requests
+
+// Upload media files for page posts (for rich text editors or pre-upload)
+router.post(
+  "/:pageId/upload-media",
+  authentication,
+  uploadPostMedia.array("media", 10),
+  async (req, res) => {
+    try {
+      const { pageId } = req.params;
+      const userId = req.user.userId;
+      const uploadedFiles = req.files;
+
+      if (!uploadedFiles || uploadedFiles.length === 0) {
+        return res.status(400).json({ message: "No files uploaded" });
+      }
+
+      // Check if user is member or owner of the page
+      const [page, membership] = await Promise.all([
+        prisma.page.findUnique({
+          where: { id: pageId },
+          select: { id: true, name: true, ownerId: true },
+        }),
+        prisma.pageMember.findUnique({
+          where: {
+            userId_pageId: {
+              userId,
+              pageId,
+            },
+          },
+        }),
+      ]);
+
+      if (!page) {
+        return res.status(404).json({ message: "Page not found" });
+      }
+
+      // Check if user can post (owner or accepted member)
+      const canPost =
+        page.ownerId === userId ||
+        (membership && membership.status === "accepted");
+      if (!canPost) {
+        return res.status(403).json({
+          message:
+            "You must be an accepted member to upload media to this page",
+        });
+      }
+
+      const mediaFiles = uploadedFiles.map((file) => {
+        // Determine media type based on MIME type
+        let mediaType = "image";
+        if (file.mimetype.startsWith("video/")) {
+          mediaType = "video";
+        }
+
+        return {
+          filename: file.filename,
+          originalName: file.originalname,
+          url: `/uploads/post_media/${file.filename}`,
+          type: mediaType,
+          size: file.size,
+          mimeType: file.mimetype,
+        };
+      });
+
+      console.log(
+        `✅ Successfully uploaded ${mediaFiles.length} media files for page ${pageId}`
+      );
+
+      return res.status(200).json({
+        message: "Media files uploaded successfully",
+        media: mediaFiles,
+        uploadedCount: mediaFiles.length,
+      });
+    } catch (error) {
+      console.error("Error uploading page media:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
 
 export { router as pageRoute };

@@ -15,6 +15,7 @@ import { pageRoute } from "./Route/pageRoute.js";
 import { notificationRouter } from "./Route/notificationRoute.js";
 import { searchRouter } from "./Route/searchRoute.js";
 import { verificationRoute } from "./Route/verificationRoute.js";
+import { boostedPostRouter } from "./Route/boostedPostRoute.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -45,7 +46,10 @@ try {
   console.error("❌ Error reading uploads directory:", error.message);
 }
 
-const allowedOrigins = ["https://media.fiqrianandahakin.my.id"];
+const allowedOrigins = [
+  "https://media.fiqrianandahakin.my.id",
+  "http://localhost:5173",
+];
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -79,6 +83,7 @@ app.use("/api/page", authentication, pageRoute);
 app.use("/api/notifications", authentication, notificationRouter);
 app.use("/api/search", authentication, searchRouter);
 app.use("/api/verification", authentication, verificationRoute);
+app.use("/api/boosted-posts", authentication, boostedPostRouter);
 
 app.listen(env.DEV_PORT, () => {
   console.log(`🚀 Server is running on port ${env.DEV_PORT}`);

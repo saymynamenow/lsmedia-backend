@@ -119,10 +119,10 @@ router.post(
         // Set cookies with proper configuration
         res.cookie("token", token, {
           httpOnly: true,
-          // secure: process.env.NODE_ENV === "production",
-          secure: true,
-          // sameSite: process.env.NODE_ENV === "production" ? "strict" : "none",
-          sameSite: "none",
+          secure: process.env.NODE_ENV === "production",
+          // secure: true,
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          // sameSite: "none",
           maxAge: 60 * 60 * 1000, // 15 minutes
         });
 
