@@ -95,6 +95,7 @@ router.post(
       const user = await prisma.user.findFirst({
         where: {
           OR: [{ username: usernameormail }, { email: usernameormail }],
+          deletedAt: null, // Only allow login for non-deleted users
         },
       });
       if (!user) {
@@ -155,7 +156,10 @@ router.get("/me", authentication, async (req, res) => {
   try {
     const userId = req.user.userId;
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: {
+        id: userId,
+        deletedAt: null,
+      },
       omit: {
         password: true,
         idCard: true,
@@ -170,6 +174,64 @@ router.get("/me", authentication, async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 });
+router.get(
+  "/check/:emailorusername",
+  [
+    param("emailorusername")
+      .notEmpty()
+      .withMessage("Email or username is required"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { emailorusername } = req.params;
+
+      // Check if the input is an email format
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailorusername);
+
+      // Search for user by either email or username
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [{ email: emailorusername }, { username: emailorusername }],
+          deletedAt: null, // Only check non-deleted users
+        },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+        },
+      });
+
+      if (user) {
+        // Determine which field matched
+        const matchedField =
+          user.email === emailorusername ? "email" : "username";
+
+        return res.status(200).json({
+          exists: true,
+          matchedField: matchedField,
+          isEmail: isEmail,
+          message: `${
+            matchedField === "email" ? "Email" : "Username"
+          } already exists`,
+        });
+      } else {
+        return res.status(200).json({
+          exists: false,
+          isEmail: isEmail,
+          message: `${isEmail ? "Email" : "Username"} is available`,
+        });
+      }
+    } catch (error) {
+      console.error("Error checking email/username:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
 
 router.get(
   "/search",
@@ -187,6 +249,7 @@ router.get(
           username: {
             contains: q,
           },
+          deletedAt: null, // Only search non-deleted users
         },
         select: {
           id: true,
@@ -223,7 +286,10 @@ router.get(
       }
       const username = req.params.username;
       const user = await prisma.user.findUnique({
-        where: { username },
+        where: {
+          username,
+          deletedAt: null,
+        },
         select: {
           id: true,
           username: true,
@@ -244,12 +310,14 @@ router.get(
           gender: true,
           coverPicture: true,
           posts: {
+            where: { deletedAt: null },
             select: {
               id: true,
               content: true,
               createdAt: true,
               author: true,
               media: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   url: true,
@@ -258,16 +326,19 @@ router.get(
             },
           },
           followers: {
+            where: { deletedAt: null },
             select: {
               id: true,
             },
           },
           following: {
+            where: { deletedAt: null },
             select: {
               id: true,
             },
           },
           friends: {
+            where: { deletedAt: null },
             select: {
               id: true,
               userB: {
@@ -289,6 +360,80 @@ router.get(
       return res.status(200).json(user);
     } catch (error) {
       console.error("Error fetching user by username:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+// Check if email exists
+router.get(
+  "/check-email/:email",
+  [
+    param("email")
+      .notEmpty()
+      .withMessage("Email is required")
+      .isEmail()
+      .withMessage("Invalid email format"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { email } = req.params;
+
+      const user = await prisma.user.findUnique({
+        where: {
+          email: email,
+          deletedAt: null,
+        },
+        select: { id: true, email: true },
+      });
+
+      return res.status(200).json({
+        exists: !!user,
+        type: "email",
+        value: email,
+        message: user ? "Email already exists" : "Email is available",
+      });
+    } catch (error) {
+      console.error("Error checking email:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+// Check if username exists
+router.get(
+  "/check-username/:username",
+  [param("username").notEmpty().withMessage("Username is required")],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { username } = req.params;
+
+      const user = await prisma.user.findUnique({
+        where: {
+          username: username,
+          deletedAt: null,
+        },
+        select: { id: true, username: true },
+      });
+
+      return res.status(200).json({
+        exists: !!user,
+        type: "username",
+        value: username,
+        message: user ? "Username already exists" : "Username is available",
+      });
+    } catch (error) {
+      console.error("Error checking username:", error);
       return res.status(500).json({ message: "Internal server error" });
     }
   }

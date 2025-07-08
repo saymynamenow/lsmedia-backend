@@ -29,6 +29,7 @@ router.post(
             userId,
             postId,
           },
+          deletedAt: null,
         },
       });
 

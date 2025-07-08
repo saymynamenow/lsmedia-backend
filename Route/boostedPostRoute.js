@@ -9,7 +9,10 @@ const router = express.Router();
 const checkProUser = async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: {
+        id: req.user.userId,
+        deletedAt: null,
+      },
       select: { isProUser: true },
     });
 
@@ -35,10 +38,12 @@ const checkWeeklyBoostLimit = async (userId) => {
     where: {
       post: {
         authorId: userId,
+        deletedAt: null,
       },
       createdAt: {
         gte: oneWeekAgo,
       },
+      deletedAt: null,
     },
   });
 
@@ -69,7 +74,10 @@ router.post(
 
       // Check if post exists and belongs to the user
       const post = await prisma.post.findUnique({
-        where: { id: postId },
+        where: {
+          id: postId,
+          deletedAt: null,
+        },
         select: {
           id: true,
           authorId: true,
@@ -91,7 +99,10 @@ router.post(
       } else if (post.type === "page" && post.pageId) {
         // Check if user is the owner of the page
         const page = await prisma.page.findUnique({
-          where: { id: post.pageId },
+          where: {
+            id: post.pageId,
+            deletedAt: null,
+          },
           select: { ownerId: true },
         });
 
@@ -112,6 +123,10 @@ router.post(
         where: {
           postId: postId,
           status: "accepted",
+          deletedAt: null,
+          post: {
+            deletedAt: null,
+          },
           OR: [
             { endDate: null }, // No end date (indefinite)
             { endDate: { gt: new Date() } }, // End date is in the future
@@ -147,6 +162,7 @@ router.post(
           post: {
             include: {
               author: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   username: true,
@@ -156,6 +172,7 @@ router.post(
                 },
               },
               page: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   name: true,
@@ -163,11 +180,17 @@ router.post(
                   isVerified: true,
                 },
               },
-              media: true,
+              media: {
+                where: { deletedAt: null },
+              },
               _count: {
                 select: {
-                  comments: true,
-                  reactions: true,
+                  comments: {
+                    where: { deletedAt: null },
+                  },
+                  reactions: {
+                    where: { deletedAt: null },
+                  },
                 },
               },
             },
@@ -198,10 +221,11 @@ router.get("/", async (req, res) => {
       prisma.boostedPost.findMany({
         where: {
           status: "accepted",
-          OR: [
-            { endDate: null }, // No end date (indefinite)
-            { endDate: { gt: new Date() } }, // End date is in the future
-          ],
+          deletedAt: null,
+          post: {
+            deletedAt: null,
+          },
+          //   OR: [{ endDate: null }, { endDate: { gt: new Date() } }], HERE
         },
         skip,
         take: limit,
@@ -210,6 +234,7 @@ router.get("/", async (req, res) => {
           post: {
             include: {
               author: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   username: true,
@@ -220,6 +245,7 @@ router.get("/", async (req, res) => {
                 },
               },
               page: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   name: true,
@@ -227,9 +253,14 @@ router.get("/", async (req, res) => {
                   isVerified: true,
                 },
               },
-              media: true,
-              reactions: true,
+              media: {
+                where: { deletedAt: null },
+              },
+              reactions: {
+                where: { deletedAt: null },
+              },
               comments: {
+                where: { deletedAt: null },
                 include: {
                   user: {
                     select: {
@@ -244,8 +275,12 @@ router.get("/", async (req, res) => {
               },
               _count: {
                 select: {
-                  comments: true,
-                  reactions: true,
+                  comments: {
+                    where: { deletedAt: null },
+                  },
+                  reactions: {
+                    where: { deletedAt: null },
+                  },
                 },
               },
             },
@@ -255,6 +290,10 @@ router.get("/", async (req, res) => {
       prisma.boostedPost.count({
         where: {
           status: "accepted",
+          deletedAt: null,
+          post: {
+            deletedAt: null,
+          },
           OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
         },
       }),
@@ -284,8 +323,10 @@ router.get("/my-boosts", authentication, async (req, res) => {
     const [boostedPosts, total] = await Promise.all([
       prisma.boostedPost.findMany({
         where: {
+          deletedAt: null,
           post: {
             authorId: userId,
+            deletedAt: null,
           },
         },
         skip,
@@ -295,6 +336,7 @@ router.get("/my-boosts", authentication, async (req, res) => {
           post: {
             include: {
               author: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   username: true,
@@ -304,6 +346,7 @@ router.get("/my-boosts", authentication, async (req, res) => {
                 },
               },
               page: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   name: true,
@@ -311,11 +354,17 @@ router.get("/my-boosts", authentication, async (req, res) => {
                   isVerified: true,
                 },
               },
-              media: true,
+              media: {
+                where: { deletedAt: null },
+              },
               _count: {
                 select: {
-                  comments: true,
-                  reactions: true,
+                  comments: {
+                    where: { deletedAt: null },
+                  },
+                  reactions: {
+                    where: { deletedAt: null },
+                  },
                 },
               },
             },
@@ -324,8 +373,10 @@ router.get("/my-boosts", authentication, async (req, res) => {
       }),
       prisma.boostedPost.count({
         where: {
+          deletedAt: null,
           post: {
             authorId: userId,
+            deletedAt: null,
           },
         },
       }),
@@ -368,7 +419,10 @@ router.delete(
 
       // Find the boosted post and check ownership
       const boostedPost = await prisma.boostedPost.findUnique({
-        where: { id: boostedPostId },
+        where: {
+          id: boostedPostId,
+          deletedAt: null,
+        },
         include: {
           post: {
             select: {
@@ -377,6 +431,7 @@ router.delete(
               pageId: true,
               type: true,
               page: {
+                where: { deletedAt: null },
                 select: {
                   ownerId: true,
                 },
@@ -424,6 +479,7 @@ router.delete(
               id: true,
               content: true,
               author: {
+                where: { deletedAt: null },
                 select: {
                   id: true,
                   username: true,
@@ -453,7 +509,10 @@ router.get("/stats", authentication, async (req, res) => {
 
     // Check if user is pro
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: {
+        id: userId,
+        deletedAt: null,
+      },
       select: { isProUser: true },
     });
 
@@ -466,15 +525,19 @@ router.get("/stats", authentication, async (req, res) => {
     const [totalBoosts, activeBoosts, weeklyBoosts] = await Promise.all([
       prisma.boostedPost.count({
         where: {
+          deletedAt: null,
           post: {
             authorId: userId,
+            deletedAt: null,
           },
         },
       }),
       prisma.boostedPost.count({
         where: {
+          deletedAt: null,
           post: {
             authorId: userId,
+            deletedAt: null,
           },
           status: "accepted",
           OR: [{ endDate: null }, { endDate: { gt: new Date() } }],

@@ -16,6 +16,7 @@ import { notificationRouter } from "./Route/notificationRoute.js";
 import { searchRouter } from "./Route/searchRoute.js";
 import { verificationRoute } from "./Route/verificationRoute.js";
 import { boostedPostRouter } from "./Route/boostedPostRoute.js";
+import reportRouter from "./Route/reportRoute.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -84,6 +85,7 @@ app.use("/api/notifications", authentication, notificationRouter);
 app.use("/api/search", authentication, searchRouter);
 app.use("/api/verification", authentication, verificationRoute);
 app.use("/api/boosted-posts", authentication, boostedPostRouter);
+app.use("/api/reports", authentication, reportRouter);
 
 app.listen(env.DEV_PORT, () => {
   console.log(`🚀 Server is running on port ${env.DEV_PORT}`);

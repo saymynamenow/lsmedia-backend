@@ -1,6 +1,6 @@
 import express from "express";
 import prisma from "../config/prismaConfig.js";
-import { query, param, validationResult } from "express-validator";
+import { body, query, param, validationResult } from "express-validator";
 import { upload } from "../config/multer.js";
 import { authentication } from "../middleware/authenticantion.js";
 const router = express.Router();
@@ -43,7 +43,7 @@ router.get(
 
 router.get(
   "/:id",
-  [param("id").isUUID().withMessage("User ID is required")],
+  [param("id").notEmpty().withMessage("User ID is required")],
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -56,15 +56,8 @@ router.get(
       }
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          name: true,
-          profilePicture: true,
-          bio: true,
-          createdAt: true,
-          updatedAt: true,
+        omit: {
+          password: true,
         },
       });
       if (!user) {
@@ -244,6 +237,10 @@ router.get(
       .optional()
       .isInt({ min: 1, max: 100 })
       .withMessage("Limit must be between 1 and 100"),
+    query("status")
+      .optional()
+      .isIn(["active", "pending", "banned"])
+      .withMessage("Status must be one of: active, pending, banned"),
   ],
   async (req, res) => {
     try {
@@ -254,8 +251,10 @@ router.get(
 
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
+      const status = req.query.status;
 
       const users = await prisma.user.findMany({
+        where: status ? { accountStatus: status } : {},
         skip: (page - 1) * limit,
         take: limit,
         omit: {
@@ -274,6 +273,11 @@ router.get(
 
       const totalUsers = await prisma.user.count();
       const totalPages = Math.ceil(totalUsers / limit);
+      const pendingRequests = await prisma.user.count({
+        where: {
+          accountStatus: "pending",
+        },
+      });
 
       res.status(200).json({
         users,
@@ -281,6 +285,7 @@ router.get(
           currentPage: page,
           totalPages,
           totalUsers,
+          pendingRequests,
         },
       });
     } catch (error) {
@@ -386,6 +391,50 @@ router.patch(
       });
     } catch (error) {
       console.error("Error updating profile picture:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.patch(
+  "/:id/status",
+  [
+    body("status").notEmpty().withMessage("Status is required"),
+    param("id").notEmpty().withMessage("Valid User ID is required"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const userId = req.params.id;
+      const { status } = req.body;
+
+      if (!req.user.isAdmin) {
+        return res
+          .status(403)
+          .json({ message: "Only admins can update user status" });
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { accountStatus: status },
+        select: {
+          id: true,
+          username: true,
+          accountStatus: true,
+          updatedAt: true,
+        },
+      });
+
+      res.status(200).json({
+        message: "User status updated successfully",
+        user: updatedUser,
+      });
+    } catch (error) {
+      console.error("Error updating user status:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   }

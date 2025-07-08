@@ -6,6 +6,115 @@ import { upload, uploadPostMedia } from "../config/multer.js";
 import { NotificationService } from "../services/notificationService.js";
 
 const router = express.Router();
+
+router.get(
+  "/suggestions",
+  [
+    query("q")
+      .optional()
+      .isLength({ min: 1, max: 50 })
+      .withMessage("Query must be between 1 and 50 characters"),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 20 })
+      .withMessage("Limit must be between 1 and 20"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { q } = req.query;
+      const limit = parseInt(req.query.limit) || 10;
+
+      if (!q || q.trim() === "") {
+        const popularPages = await prisma.page.findMany({
+          where: {
+            isPublic: true,
+            isVerified: true,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            profileImage: true,
+            isVerified: true,
+            _count: {
+              select: {
+                followers: {
+                  where: { deletedAt: null },
+                },
+              },
+            },
+          },
+          orderBy: [{ createdAt: "desc" }],
+          take: limit,
+        });
+
+        return res.status(200).json({
+          suggestions: popularPages.map((page) => ({
+            id: page.id,
+            name: page.name,
+            category: page.category,
+            profileImage: page.profileImage,
+            isVerified: page.isVerified,
+            type: "page",
+            followerCount: page._count.followers,
+          })),
+          query: "",
+          type: "popular",
+        });
+      }
+
+      // Search for pages matching the query
+      const suggestions = await prisma.page.findMany({
+        where: {
+          OR: [{ name: { contains: q } }, { category: { contains: q } }],
+          isPublic: true,
+          isVerified: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          profileImage: true,
+          isVerified: true,
+          _count: {
+            select: {
+              followers: {
+                where: { deletedAt: null },
+              },
+            },
+          },
+        },
+        orderBy: [{ name: "asc" }],
+        take: limit,
+      });
+
+      return res.status(200).json({
+        suggestions: suggestions.map((page) => ({
+          id: page.id,
+          name: page.name,
+          category: page.category,
+          profileImage: page.profileImage,
+          isVerified: page.isVerified,
+          type: "page",
+          followerCount: page._count.followers,
+        })),
+        query: q,
+        type: "search",
+      });
+    } catch (error) {
+      console.error("Error fetching page suggestions:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
 router.get(
   "/my-pending-requests",
   [
@@ -172,7 +281,7 @@ router.get(
               },
             },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: [{ isVerified: "desc" }, { createdAt: "desc" }],
           skip,
           take: limit,
         }),
@@ -1960,108 +2069,6 @@ router.get("/categories", async (req, res) => {
 });
 
 // Get search suggestions (autocomplete)
-router.get(
-  "/suggestions",
-  [
-    query("q")
-      .optional()
-      .isLength({ min: 1, max: 50 })
-      .withMessage("Query must be between 1 and 50 characters"),
-    query("limit")
-      .optional()
-      .isInt({ min: 1, max: 20 })
-      .withMessage("Limit must be between 1 and 20"),
-  ],
-  authentication,
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { q } = req.query;
-      const limit = parseInt(req.query.limit) || 10;
-
-      if (!q || q.trim() === "") {
-        // Return popular pages if no query
-        const popularPages = await prisma.page.findMany({
-          where: { isPublic: true },
-          select: {
-            id: true,
-            name: true,
-            category: true,
-            profileImage: true,
-            isVerified: true,
-            _count: {
-              select: {
-                followers: true,
-              },
-            },
-          },
-          orderBy: [{ isVerified: "asc" }, { createdAt: "desc" }],
-          take: limit,
-        });
-
-        return res.status(200).json({
-          suggestions: popularPages.map((page) => ({
-            id: page.id,
-            name: page.name,
-            category: page.category,
-            profileImage: page.profileImage,
-            isVerified: page.isVerified,
-            type: "page",
-            followerCount: page._count.followers,
-          })),
-          query: "",
-          type: "popular",
-        });
-      }
-
-      // Search for pages matching the query
-      const suggestions = await prisma.page.findMany({
-        where: {
-          OR: [
-            { name: { contains: q, lte: "insensitive" } },
-            { category: { contains: q, lte: "insensitive" } },
-          ],
-          isPublic: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          category: true,
-          profileImage: true,
-          isVerified: true,
-          _count: {
-            select: {
-              followers: true,
-            },
-          },
-        },
-        orderBy: [{ isVerified: "desc" }, { name: "asc" }],
-        take: limit,
-      });
-
-      return res.status(200).json({
-        suggestions: suggestions.map((page) => ({
-          id: page.id,
-          name: page.name,
-          category: page.category,
-          profileImage: page.profileImage,
-          isVerified: page.isVerified,
-          type: "page",
-          followerCount: page._count.followers,
-        })),
-        query: q,
-        type: "search",
-      });
-    } catch (error) {
-      console.error("Error fetching page suggestions:", error);
-      return res.status(500).json({ message: "Internal server error" });
-    }
-  }
-);
 
 // Search pages by name (optimized for search bar)
 

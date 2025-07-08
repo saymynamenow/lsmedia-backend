@@ -1,6 +1,7 @@
 import express from "express";
 import { body, check, param, query, validationResult } from "express-validator";
 import prisma from "../config/prismaConfig.js";
+import { upload } from "../config/multer.js";
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ async function updateExpiredPosts() {
         isActive: {
           in: ["accepted", "pending"], // Only update accepted or pending posts
         },
+        deletedAt: null,
       },
       data: {
         isActive: "expired",
@@ -62,7 +64,7 @@ router.get(
       const skip = (page - 1) * limit;
 
       // Build where clause
-      const whereClause = {};
+      const whereClause = { deletedAt: null };
       if (status) {
         whereClause.isActive = status;
       }
@@ -110,7 +112,10 @@ router.put(
 
       // Check if the post exists and is not expired
       const existingPost = await prisma.sponsored.findUnique({
-        where: { id },
+        where: {
+          id,
+          deletedAt: null,
+        },
       });
 
       if (!existingPost) {
@@ -158,16 +163,20 @@ router.delete(
 
       // Check if the post exists
       const existingPost = await prisma.sponsored.findUnique({
-        where: { id },
+        where: {
+          id,
+          deletedAt: null,
+        },
       });
 
       if (!existingPost) {
         return res.status(404).json({ message: "Sponsored post not found" });
       }
 
-      // Delete the sponsored post
-      await prisma.sponsored.delete({
+      // Soft delete the sponsored post
+      await prisma.sponsored.update({
         where: { id },
+        data: { deletedAt: new Date() },
       });
 
       res.status(200).json({ message: "Sponsored post deleted successfully" });
@@ -178,43 +187,90 @@ router.delete(
   }
 );
 
-router.patch("/:id", [], async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, content, imageUrl, startDate, endDate } = req.body;
+router.patch(
+  "/:id",
+  upload.single("image"),
+  [
+    param("id").notEmpty().withMessage("Invalid ID format"),
+    body("title").optional().notEmpty().withMessage("Title cannot be empty"),
+    body("content")
+      .optional()
+      .notEmpty()
+      .withMessage("Content cannot be empty"),
+    body("startDate")
+      .optional()
+      .isISO8601()
+      .toDate()
+      .withMessage("Start date must be a valid date"),
+    body("endDate")
+      .optional()
+      .isISO8601()
+      .toDate()
+      .withMessage("End date must be a valid date")
+      .custom((endDate, { req }) => {
+        if (endDate && req.body.startDate) {
+          const startDate = new Date(req.body.startDate);
+          if (endDate <= startDate) {
+            throw new Error("End date must be after start date");
+          }
+        }
+        return true;
+      }),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
-    // Validate the ID format
-    if (!id) {
-      return res.status(400).json({ message: "Invalid ID format" });
+      const { id } = req.params;
+      const { title, content, startDate, endDate } = req.body;
+      const uploadedFile = req.file;
+
+      // Check if the post exists
+      const existingPost = await prisma.sponsored.findUnique({
+        where: {
+          id,
+          deletedAt: null,
+        },
+      });
+
+      if (!existingPost) {
+        return res.status(404).json({ message: "Sponsored post not found" });
+      }
+
+      // Prepare update data
+      const updateData = {};
+
+      if (title !== undefined) updateData.title = title;
+      if (content !== undefined) updateData.content = content;
+      if (startDate !== undefined) updateData.startDate = new Date(startDate);
+      if (endDate !== undefined) updateData.endDate = new Date(endDate);
+
+      // Handle image upload
+      if (uploadedFile) {
+        updateData.imageUrl = `/uploads/${uploadedFile.filename}`;
+      }
+
+      // Update the sponsored post
+      const updatedPost = await prisma.sponsored.update({
+        where: { id },
+        data: updateData,
+      });
+
+      res.status(200).json({
+        message: "Sponsored post updated successfully",
+        sponsoredPost: updatedPost,
+        imageUpdated: !!uploadedFile,
+        imagePath: uploadedFile ? updateData.imageUrl : existingPost.imageUrl,
+      });
+    } catch (error) {
+      console.error("Error updating sponsored post:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
-
-    // Check if the post exists
-    const existingPost = await prisma.sponsored.findUnique({
-      where: { id },
-    });
-
-    if (!existingPost) {
-      return res.status(404).json({ message: "Sponsored post not found" });
-    }
-
-    // Update the sponsored post
-    const updatedPost = await prisma.sponsored.update({
-      where: { id },
-      data: {
-        title,
-        content,
-        imageUrl,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-      },
-    });
-
-    res.status(200).json(updatedPost);
-  } catch (error) {
-    console.error("Error updating sponsored post:", error);
-    res.status(500).json({ message: "Internal server error" });
   }
-});
+);
 
 router.put(
   "/reject/:id",
@@ -229,7 +285,10 @@ router.put(
       const { id } = req.params;
 
       const updatedPost = await prisma.sponsored.update({
-        where: { id },
+        where: {
+          id,
+          deletedAt: null,
+        },
         data: { isActive: "rejected" },
       });
 
@@ -243,10 +302,10 @@ router.put(
 
 router.post(
   "/createsponsored",
+  upload.single("image"),
   [
     body("title").notEmpty().withMessage("Title is required"),
     body("content").notEmpty().withMessage("Content is required"),
-    body("imageUrl").optional().isURL().withMessage("Image URL must be valid"),
     body("startDate")
       .notEmpty()
       .withMessage("Start date is required")
@@ -280,7 +339,15 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { title, content, imageUrl, startDate, endDate } = req.body;
+      const { title, content, startDate, endDate } = req.body;
+      const uploadedFile = req.file;
+
+      // Prepare the image URL
+      let imageUrl = null;
+      if (uploadedFile) {
+        // Use the uploaded file path
+        imageUrl = `/${uploadedFile.filename}`;
+      }
 
       const sponsoredPost = await prisma.sponsored.create({
         data: {
@@ -292,7 +359,13 @@ router.post(
           endDate: new Date(endDate),
         },
       });
-      return res.status(201).json(sponsoredPost);
+
+      return res.status(201).json({
+        message: "Sponsored post created successfully",
+        sponsoredPost,
+        imageUploaded: !!uploadedFile,
+        imagePath: imageUrl,
+      });
     } catch (error) {
       console.log("Error creating sponsored post:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -326,6 +399,7 @@ router.get("/active", async (req, res) => {
     const activePosts = await prisma.sponsored.findMany({
       where: {
         isActive: "accepted",
+        deletedAt: null,
         startDate: {
           lte: now, // Start date is less than or equal to now
         },

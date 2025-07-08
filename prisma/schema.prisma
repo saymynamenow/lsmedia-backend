@@ -5,10 +5,9 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../generated/prisma"
-binaryTargets = ["native", "windows", "debian-openssl-1.1.x"]
-
+  provider      = "prisma-client-js"
+  output        = "../generated/prisma"
+  binaryTargets = ["native", "windows", "debian-openssl-1.1.x"]
 }
 
 datasource db {
@@ -69,207 +68,266 @@ enum PostType {
   page
 }
 
+enum ReportType {
+  post
+  comment
+  account
+  page
+}
 
+enum ReportReason {
+  spam
+  harassment
+  hate_speech
+  violence
+  nudity
+  false_information
+  intellectual_property
+  self_harm
+  terrorism
+  bullying
+  impersonation
+  other
+}
 
 model User {
-  id             String   @id @default(cuid())
-  username       String   @unique
-  email          String   @unique
-  password       String
-  name           String
-  bio            String?
-  gender         Gender?
-  birthdate      DateTime?
-  location       String?
-  relationshipStatus String? 
-  studyField     String?
-  relationships    String? 
-  profilePicture String?
-  accountStatus  AccountStatus @default(pending)
-  isProUser     Boolean  @default(false)
-  isAdmin        Boolean  @default(false)
-  coverPicture   String? @db.LongText
-  isVerified     Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  idCard         String? @db.LongText 
-  
+  id                 String        @id @default(cuid())
+  username           String        @unique
+  email              String        @unique
+  password           String
+  name               String
+  bio                String?
+  gender             Gender?
+  birthdate          DateTime?
+  location           String?
+  relationshipStatus String?
+  studyField         String?
+  relationships      String?
+  profilePicture     String?
+  accountStatus      AccountStatus @default(pending)
+  isProUser          Boolean       @default(false)
+  isAdmin            Boolean       @default(false)
+  coverPicture       String?       @db.LongText
+  isVerified         Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+  idCard             String?       @db.LongText
 
-  posts       Post[]
-  stories     Story[]
-  followers   Follower[]   @relation("FollowedBy")
-  following   Follower[]   @relation("Following")
-  friends     Friendship[] @relation("FriendsA")
-  friendsWith Friendship[] @relation("FriendsB")
-  pageMembers PageMember[]
-  ownedPages  Page[]       @relation("OwnedPages")
-  pageFollowers PageFollower[] @relation("UserPageFollowers")
-  comments    Comment[]
-  reactions   Reaction[]
-  notifications Notification[] @relation("UserNotifications")
-  sentNotifications Notification[] @relation("NotificationSender")
-  verificationRequests VerificationRequest[]
+  posts                 Post[]
+  stories               Story[]
+  followers             Follower[]            @relation("FollowedBy")
+  following             Follower[]            @relation("Following")
+  friends               Friendship[]          @relation("FriendsA")
+  friendsWith           Friendship[]          @relation("FriendsB")
+  pageMembers           PageMember[]
+  ownedPages            Page[]                @relation("OwnedPages")
+  pageFollowers         PageFollower[]        @relation("UserPageFollowers")
+  comments              Comment[]
+  reactions             Reaction[]
+  notifications         Notification[]        @relation("UserNotifications")
+  sentNotifications     Notification[]        @relation("NotificationSender")
+  verificationRequests  VerificationRequest[]
   reviewedVerifications VerificationRequest[] @relation("VerificationReviewer")
+  reports               Report[]              @relation("UserReports")
+  reviewedReports       Report[]              @relation("ReportReviewer")
+  accountReports        Report[]              @relation("AccountReports")
+
+  @@index([deletedAt])
   @@map("user")
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String   // Recipient
-  senderId  String?  // User who triggered the notification
-  type      NotificationType 
+  id        String           @id @default(cuid())
+  userId    String // Recipient
+  senderId  String? // User who triggered the notification
+  type      NotificationType
   title     String
-  content   String? @db.LongText
-  isRead    Boolean @default(false)
-  createdAt DateTime @default(now())
+  content   String?          @db.LongText
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  deletedAt DateTime?
 
   // Related entities (optional fields)
   postId    String? // Optional, if the notification is related to a post
   commentId String? // Optional, if the notification is related to a comment
   pageId    String? // Optional, if the notification is related to a page
 
-  user      User     @relation("UserNotifications", fields: [userId], references: [id])
-  sender    User?    @relation("NotificationSender", fields: [senderId], references: [id])
-  post      Post?    @relation(fields: [postId], references: [id])
-  comment   Comment? @relation(fields: [commentId], references: [id])
-  page      Page?    @relation(fields: [pageId], references: [id])
+  user    User     @relation("UserNotifications", fields: [userId], references: [id])
+  sender  User?    @relation("NotificationSender", fields: [senderId], references: [id])
+  post    Post?    @relation(fields: [postId], references: [id])
+  comment Comment? @relation(fields: [commentId], references: [id])
+  page    Page?    @relation(fields: [pageId], references: [id])
 
   @@index([userId, isRead])
   @@index([createdAt])
+  @@index([deletedAt])
   @@map("notification")
 }
 
 model Sponsored {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   title     String
-  content   String? @db.LongText
-  imageUrl  String? @db.LongText
-  link      String? @db.LongText
-  isActive  Status @default(pending)
-  startDate DateTime @default(now())
+  content   String?   @db.LongText
+  imageUrl  String?   @db.LongText
+  link      String?   @db.LongText
+  isActive  Status    @default(pending)
+  startDate DateTime  @default(now())
   endDate   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([deletedAt])
   @@map("sponsored")
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  content   String? @db.LongText
-  authorId  String?  // User author (optional)
-  pageId    String?  // Page author (optional)
-  type      PostType @default(user)
-  createdAt DateTime @default(now())
+  id        String    @id @default(cuid())
+  content   String?   @db.LongText
+  authorId  String? // User author (optional)
+  pageId    String? // Page author (optional)
+  type      PostType  @default(user)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+  deletedAt DateTime?
 
-  author   User?      @relation(fields: [authorId], references: [id])
-  page     Page?      @relation("PagePosts", fields: [pageId], references: [id])
-  media    Media[]
-  comments Comment[]
-  reactions Reaction[]
+  author        User?          @relation(fields: [authorId], references: [id])
+  page          Page?          @relation("PagePosts", fields: [pageId], references: [id])
+  media         Media[]
+  comments      Comment[]
+  reactions     Reaction[]
   notifications Notification[]
-  boostedPosts BoostedPost[]
+  boostedPosts  BoostedPost[]
+  reports       Report[]       @relation("PostReports")
+
+  @@index([deletedAt])
   @@map("post")
 }
 
 model BoostedPost {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   postId    String
-  startDate DateTime @default(now())
+  startDate DateTime  @default(now())
   endDate   DateTime?
-  status    Status @default(accepted)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    Status    @default(accepted)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   post Post @relation(fields: [postId], references: [id])
+
+  @@index([deletedAt])
   @@map("boosted_post")
 }
 
 model Media {
-  id        String   @id @default(cuid())
-  url       String @db.LongText
-  type      String // image, video, etc.
-  postId    String
-  createdAt DateTime @default(now())
+  id           String    @id @default(cuid())
+  url          String    @db.LongText
+  type         String // image, video, etc.
+  filename     String?
+  originalName String?
+  size         Int?
+  mimeType     String?
+  postId       String
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([deletedAt])
   @@map("media")
 }
 
 model Story {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   mediaUrl  String
   caption   String?
   expiresAt DateTime
   authorId  String
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
   author User @relation(fields: [authorId], references: [id])
+
+  @@index([deletedAt])
   @@map("story")
 }
 
 model Follower {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   followerId  String
   followingId String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
 
   follower  User @relation("Following", fields: [followerId], references: [id])
   following User @relation("FollowedBy", fields: [followingId], references: [id])
 
   @@unique([followerId, followingId])
+  @@index([deletedAt])
   @@map("follower")
 }
 
 model Friendship {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userAId   String
   userBId   String
   status    String // pending, accepted, rejected
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
   userA User @relation("FriendsA", fields: [userAId], references: [id])
   userB User @relation("FriendsB", fields: [userBId], references: [id])
 
   @@unique([userAId, userBId])
+  @@index([deletedAt])
   @@map("friendship")
 }
 
 model Page {
-  id          String  @id @default(cuid())
-  name        String
-  description String?
-  coverImage  String? @db.LongText
-  profileImage String? @db.LongText
-  ownerId     String
-  category    String?
-  isVerified  Boolean @default(false)
-  isPublic    Boolean @default(true)
-  address     String?
-  phone       String?
-  website     String? @db.LongText
-  email       String? @db.LongText
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  coverImage   String?   @db.LongText
+  profileImage String?   @db.LongText
+  ownerId      String
+  category     String?
+  isVerified   Boolean   @default(false)
+  isPublic     Boolean   @default(true)
+  address      String?
+  phone        String?
+  website      String?   @db.LongText
+  email        String?   @db.LongText
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  owner     User         @relation("OwnedPages", fields: [ownerId], references: [id])
-  members   PageMember[]
-  followers PageFollower[]
-  posts     Post[]       @relation("PagePosts")
+  owner         User           @relation("OwnedPages", fields: [ownerId], references: [id])
+  members       PageMember[]
+  followers     PageFollower[]
+  posts         Post[]         @relation("PagePosts")
   notifications Notification[]
+  reports       Report[]       @relation("PageReports")
+
+  @@index([deletedAt])
   @@map("page")
 }
 
 model PageMember {
-  id     String   @id @default(cuid())
-  userId String
-  pageId String
-  role   PageRole @default(member)
-  createdAt DateTime @default(now())
-  status Status @default(pending)
+  id        String    @id @default(cuid())
+  userId    String
+  pageId    String
+  role      PageRole  @default(member)
+  createdAt DateTime  @default(now())
+  status    Status    @default(pending)
+  deletedAt DateTime?
 
   user User @relation(fields: [userId], references: [id])
   page Page @relation(fields: [pageId], references: [id])
 
   @@unique([userId, pageId])
+  @@index([deletedAt])
   @@map("pagemember")
 }
 
@@ -279,55 +337,105 @@ model Reaction {
   postId    String
   type      ReactionType
   createdAt DateTime     @default(now())
+  deletedAt DateTime?
 
   user User? @relation(fields: [userId], references: [id])
   post Post? @relation(fields: [postId], references: [id])
 
-
   @@unique([userId, postId])
+  @@index([deletedAt])
   @@map("reaction")
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   content   String
   userId    String
   postId    String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+  deletedAt DateTime?
 
-  user User @relation(fields: [userId], references: [id])
-  post Post @relation(fields: [postId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  post          Post           @relation(fields: [postId], references: [id])
   notifications Notification[]
+  reports       Report[]       @relation("CommentReports")
+
+  @@index([deletedAt])
   @@map("comment")
 }
 
 model PageFollower {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   pageId    String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
   user User @relation("UserPageFollowers", fields: [userId], references: [id])
   page Page @relation(fields: [pageId], references: [id])
 
   @@unique([userId, pageId])
+  @@index([deletedAt])
   @@map("pagefollower")
 }
 
 model VerificationRequest {
-  id          String   @id @default(cuid())
-  userId      String
-  reason      String   @db.LongText
-  documents   String?  @db.LongText // JSON string of document URLs
-  status      Status   @default(pending)
-  reviewedBy  String?  // Admin ID who reviewed
-  reviewNote  String?  @db.LongText // Admin's note
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  reviewedAt  DateTime?
+  id         String    @id @default(cuid())
+  userId     String
+  reason     String    @db.LongText
+  documents  String?   @db.LongText // JSON string of document URLs
+  status     Status    @default(pending)
+  reviewedBy String? // Admin ID who reviewed
+  reviewNote String?   @db.LongText // Admin's note
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  reviewedAt DateTime?
+  deletedAt  DateTime?
 
-  user        User     @relation(fields: [userId], references: [id])
-  reviewer    User?    @relation("VerificationReviewer", fields: [reviewedBy], references: [id])
+  user     User  @relation(fields: [userId], references: [id])
+  reviewer User? @relation("VerificationReviewer", fields: [reviewedBy], references: [id])
 
+  @@index([deletedAt])
   @@map("verificationrequest")
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  reporterId  String // User who is making the report
+  reportType  ReportType // What is being reported (post, comment, account, page)
+  reason      ReportReason // Why it's being reported
+  description String?      @db.LongText // Additional details from reporter
+  status      Status       @default(pending) // pending, accepted, rejected
+
+  // Target entities (only one should be filled based on reportType)
+  postId    String? // If reporting a post
+  commentId String? // If reporting a comment
+  accountId String? // If reporting an account/user
+  pageId    String? // If reporting a page
+
+  // Admin review fields
+  reviewedBy  String? // Admin ID who reviewed
+  reviewNote  String?   @db.LongText // Admin's review note
+  reviewedAt  DateTime? // When it was reviewed
+  actionTaken String?   @db.LongText // What action was taken (warning, suspension, etc.)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  reporter        User     @relation("UserReports", fields: [reporterId], references: [id])
+  reviewer        User?    @relation("ReportReviewer", fields: [reviewedBy], references: [id])
+  reportedPost    Post?    @relation("PostReports", fields: [postId], references: [id])
+  reportedComment Comment? @relation("CommentReports", fields: [commentId], references: [id])
+  reportedAccount User?    @relation("AccountReports", fields: [accountId], references: [id])
+  reportedPage    Page?    @relation("PageReports", fields: [pageId], references: [id])
+
+  @@index([reporterId])
+  @@index([reportType])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("report")
 }

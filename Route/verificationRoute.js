@@ -269,7 +269,7 @@ router.get(
 // Get verification request details
 router.get(
   "/:requestId",
-  [param("requestId").isUUID().withMessage("Valid request ID is required")],
+  [param("requestId").notEmpty().withMessage("Valid request ID is required")],
   authentication,
   async (req, res) => {
     try {
@@ -443,7 +443,7 @@ router.patch(
 router.patch(
   "/:requestId/reject",
   [
-    param("requestId").isUUID().withMessage("Valid request ID is required"),
+    param("requestId").notEmpty().withMessage("Valid request ID is required"),
     body("reviewNote")
       .notEmpty()
       .withMessage("Review note is required for rejection")

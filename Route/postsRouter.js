@@ -3,6 +3,7 @@ import prisma from "../config/prismaConfig.js";
 import { param, query, validationResult } from "express-validator";
 import { authentication } from "../middleware/authenticantion.js";
 import { uploadPostMedia } from "../config/multer.js";
+import { SoftDeleteService } from "../services/softDeleteService.js";
 const router = express.Router();
 
 router.post(
@@ -47,6 +48,7 @@ router.post(
         // Check if user has permission to post on this page (owner, admin, or moderator)
         const pageMember = await prisma.pageMember.findFirst({
           where: {
+            deletedAt: null,
             userId: authorId,
             pageId: pageId,
             status: "accepted",
@@ -140,11 +142,21 @@ router.get("/", async (req, res) => {
 
     const [post, total] = await Promise.all([
       prisma.post.findMany({
+        where: {
+          deletedAt: null,
+          author: {
+            deletedAt: null,
+          },
+        },
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
         include: {
-          media: true,
+          media: {
+            where: {
+              deletedAt: null,
+            },
+          },
           author: {
             select: {
               id: true,
@@ -155,7 +167,14 @@ router.get("/", async (req, res) => {
           },
         },
       }),
-      prisma.post.count(),
+      prisma.post.count({
+        where: {
+          deletedAt: null,
+          author: {
+            deletedAt: null,
+          },
+        },
+      }),
     ]);
 
     if (post.length === 0) {
@@ -180,18 +199,19 @@ router.get("/timeline", authentication, async (req, res) => {
 
     // Get users that the current user is following
     const followingUsers = await prisma.follower.findMany({
-      where: { followerId: userId },
+      where: { followerId: userId, deletedAt: null },
       select: { followingId: true },
     });
 
     // Get pages that the current user is following
     const followingPages = await prisma.pageFollower.findMany({
-      where: { userId: userId },
+      where: { userId: userId, deletedAt: null },
       select: { pageId: true },
     });
     // Get pages where the current user is an accepted member
     const memberPages = await prisma.pageMember.findMany({
       where: {
+        deletedAt: null,
         userId: userId,
         status: "accepted",
       },
@@ -217,6 +237,7 @@ router.get("/timeline", authentication, async (req, res) => {
         skip,
         take: limit,
         where: {
+          deletedAt: null,
           OR: [
             {
               authorId: {
@@ -234,7 +255,11 @@ router.get("/timeline", authentication, async (req, res) => {
         },
         orderBy: { createdAt: "desc" },
         include: {
-          media: true,
+          media: {
+            where: {
+              deletedAt: null,
+            },
+          },
           author: {
             select: {
               id: true,
@@ -246,9 +271,26 @@ router.get("/timeline", authentication, async (req, res) => {
               isProUser: true,
             },
           },
-          page: true,
-          reactions: true,
+          page: {
+            where: {
+              deletedAt: null,
+            },
+          },
+          reactions: {
+            where: {
+              deletedAt: null,
+              user: {
+                deletedAt: null,
+              },
+            },
+          },
           comments: {
+            where: {
+              deletedAt: null,
+              user: {
+                deletedAt: null,
+              },
+            },
             include: {
               user: {
                 select: {
@@ -263,14 +305,29 @@ router.get("/timeline", authentication, async (req, res) => {
           },
           _count: {
             select: {
-              comments: true,
-              reactions: true,
+              comments: {
+                where: {
+                  deletedAt: null,
+                  user: {
+                    deletedAt: null,
+                  },
+                },
+              },
+              reactions: {
+                where: {
+                  deletedAt: null,
+                  user: {
+                    deletedAt: null,
+                  },
+                },
+              },
             },
           },
         },
       }),
       prisma.post.count({
         where: {
+          deletedAt: null,
           OR: [
             // Count posts from users (including own posts)
             {
@@ -316,9 +373,13 @@ router.get(
       }
       const postId = req.params.id;
       const post = await prisma.post.findUnique({
-        where: { id: postId },
+        where: { id: postId, deletedAt: null },
         include: {
-          media: true,
+          media: {
+            where: {
+              deletedAt: null,
+            },
+          },
           author: {
             select: {
               id: true,
@@ -328,8 +389,21 @@ router.get(
               isVerified: true,
             },
           },
-          reactions: true,
+          reactions: {
+            where: {
+              deletedAt: null,
+              user: {
+                deletedAt: null,
+              },
+            },
+          },
           comments: {
+            where: {
+              deletedAt: null,
+              user: {
+                deletedAt: null,
+              },
+            },
             include: {
               user: {
                 select: {
@@ -369,14 +443,31 @@ router.get(
 
       const [posts, total] = await Promise.all([
         prisma.post.findMany({
-          where: { authorId: userId },
+          where: { authorId: userId, deletedAt: null },
           skip,
           take: limit,
           orderBy: { createdAt: "desc" },
           include: {
-            media: true,
-            reactionss: true,
+            media: {
+              where: {
+                deletedAt: null,
+              },
+            },
+            reactions: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
+            },
             comments: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
               include: {
                 user: {
                   select: {
@@ -388,6 +479,12 @@ router.get(
                 },
               },
             },
+          },
+        }),
+        prisma.post.count({
+          where: {
+            authorId: userId,
+            deletedAt: null,
           },
         }),
       ]);
@@ -443,9 +540,7 @@ router.delete(
         return res.status(400).json({ errors: errors.array() });
       }
       const postId = req.params.id;
-      const post = await prisma.post.delete({
-        where: { id: postId },
-      });
+      const post = await SoftDeleteService.softDeletePost(postId);
       res.status(200).json({ message: "Post deleted successfully", post });
     } catch (error) {
       if (error.code === "P2025") {
@@ -484,7 +579,7 @@ router.get(
 
       // First, find the user to get their info
       const user = await prisma.user.findUnique({
-        where: { username: username },
+        where: { username: username, deletedAt: null },
         select: {
           id: true,
           username: true,
@@ -510,7 +605,13 @@ router.get(
       // Then, get their posts with pagination
       const [posts, totalPosts] = await Promise.all([
         prisma.post.findMany({
-          where: { author: { username: username } },
+          where: {
+            author: {
+              username: username,
+              deletedAt: null,
+            },
+            deletedAt: null,
+          },
           skip,
           take: limit,
           orderBy: { createdAt: "desc" },
@@ -536,14 +637,30 @@ router.get(
               },
             },
             media: {
+              where: {
+                deletedAt: null,
+              },
               select: {
                 id: true,
                 url: true,
                 type: true,
               },
             },
-            reactions: true,
+            reactions: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
+            },
             comments: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
               include: {
                 user: {
                   select: {
@@ -558,14 +675,34 @@ router.get(
             },
             _count: {
               select: {
-                comments: true,
-                reactions: true,
+                comments: {
+                  where: {
+                    deletedAt: null,
+                    user: {
+                      deletedAt: null,
+                    },
+                  },
+                },
+                reactions: {
+                  where: {
+                    deletedAt: null,
+                    user: {
+                      deletedAt: null,
+                    },
+                  },
+                },
               },
             },
           },
         }),
         prisma.post.count({
-          where: { author: { username: username } },
+          where: {
+            author: {
+              username: username,
+              deletedAt: null,
+            },
+            deletedAt: null,
+          },
         }),
       ]);
 
@@ -590,21 +727,37 @@ router.get("/timeline/stats", authentication, async (req, res) => {
 
     // Get users that the current user is following
     const followingUsers = await prisma.follower.findMany({
-      where: { followerId: userId },
+      where: {
+        followerId: userId,
+        deletedAt: null,
+        following: {
+          deletedAt: null,
+        },
+      },
       select: { followingId: true },
     });
 
     // Get pages that the current user is following
     const followingPages = await prisma.pageFollower.findMany({
-      where: { userId: userId },
+      where: {
+        userId: userId,
+        deletedAt: null,
+        page: {
+          deletedAt: null,
+        },
+      },
       select: { pageId: true },
     });
 
     // Get pages where the current user is an accepted member
     const memberPages = await prisma.pageMember.findMany({
       where: {
+        deletedAt: null,
         userId: userId,
         status: "accepted",
+        page: {
+          deletedAt: null,
+        },
       },
       select: { pageId: true },
     });
@@ -627,6 +780,7 @@ router.get("/timeline/stats", authentication, async (req, res) => {
     const [userPostsCount, pagePostsCount, totalPosts] = await Promise.all([
       prisma.post.count({
         where: {
+          deletedAt: null,
           authorId: {
             in: followingUserIds,
           },
@@ -635,6 +789,7 @@ router.get("/timeline/stats", authentication, async (req, res) => {
       }),
       prisma.post.count({
         where: {
+          deletedAt: null,
           pageId: {
             in: allPageIds,
           },
@@ -643,6 +798,7 @@ router.get("/timeline/stats", authentication, async (req, res) => {
       }),
       prisma.post.count({
         where: {
+          deletedAt: null,
           OR: [
             {
               authorId: {
@@ -672,102 +828,6 @@ router.get("/timeline/stats", authentication, async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching timeline stats:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// Debug endpoint to check user's page relationships
-router.get("/debug/user-pages", authentication, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-
-    // Get pages that the current user is following
-    const followingPages = await prisma.pageFollower.findMany({
-      where: { userId: userId },
-      include: {
-        page: {
-          select: {
-            id: true,
-            name: true,
-            _count: {
-              select: {
-                posts: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // Get pages where the current user is an accepted member
-    const memberPages = await prisma.pageMember.findMany({
-      where: {
-        userId: userId,
-        status: "accepted",
-      },
-      include: {
-        page: {
-          select: {
-            id: true,
-            name: true,
-            _count: {
-              select: {
-                posts: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // Get all posts from these pages
-    const followingPageIds = followingPages.map((p) => p.pageId);
-    const memberPageIds = memberPages.map((p) => p.pageId);
-    const allPageIds = [...new Set([...followingPageIds, ...memberPageIds])];
-
-    const pagePosts = await prisma.post.findMany({
-      where: {
-        pageId: {
-          in: allPageIds,
-        },
-        type: "page",
-      },
-      select: {
-        id: true,
-        content: true,
-        createdAt: true,
-        pageId: true,
-        page: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    });
-
-    res.status(200).json({
-      debug: {
-        userId,
-        followingPages: followingPages.map((fp) => ({
-          pageId: fp.pageId,
-          pageName: fp.page.name,
-          postCount: fp.page._count.posts,
-        })),
-        memberPages: memberPages.map((mp) => ({
-          pageId: mp.pageId,
-          pageName: mp.page.name,
-          postCount: mp.page._count.posts,
-          role: mp.role,
-        })),
-        allPageIds,
-        recentPagePosts: pagePosts,
-      },
-    });
-  } catch (error) {
-    console.error("Error in debug endpoint:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -804,6 +864,7 @@ router.post(
       // Check if user has permission to post on this page (owner, admin, or moderator)
       const pageMember = await prisma.pageMember.findFirst({
         where: {
+          deletedAt: null,
           userId: authorId,
           pageId: pageId,
           status: "accepted",
@@ -885,6 +946,12 @@ router.post(
 router.get("/debug/all-posts", authentication, async (req, res) => {
   try {
     const posts = await prisma.post.findMany({
+      where: {
+        deletedAt: null,
+        author: {
+          deletedAt: null,
+        },
+      },
       select: {
         id: true,
         content: true,
@@ -938,6 +1005,7 @@ router.post("/debug/fix-page-posts", authentication, async (req, res) => {
     // Update all posts that have pageId but type is still "user"
     const result = await prisma.post.updateMany({
       where: {
+        deletedAt: null,
         pageId: {
           not: null,
         },
@@ -968,19 +1036,20 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
 
     // Get users that the current user is following
     const followingUsers = await prisma.follower.findMany({
-      where: { followerId: userId },
+      where: { followerId: userId, deletedAt: null },
       select: { followingId: true },
     });
 
     // Get pages that the current user is following
     const followingPages = await prisma.pageFollower.findMany({
-      where: { userId: userId },
+      where: { userId: userId, deletedAt: null },
       select: { pageId: true },
     });
 
     // Get pages where the current user is an accepted member
     const memberPages = await prisma.pageMember.findMany({
       where: {
+        deletedAt: null,
         userId: userId,
         status: "accepted",
       },
@@ -1002,8 +1071,10 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
     // Get boosted posts (with higher priority)
     const boostedPosts = await prisma.post.findMany({
       where: {
+        deletedAt: null,
         boostedPosts: {
           some: {
+            deletedAt: null,
             status: "accepted",
             OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
           },
@@ -1024,7 +1095,11 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
         ],
       },
       include: {
-        media: true,
+        media: {
+          where: {
+            deletedAt: null,
+          },
+        },
         author: {
           select: {
             id: true,
@@ -1036,9 +1111,26 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
             isProUser: true,
           },
         },
-        page: true,
-        reactions: true,
+        page: {
+          where: {
+            deletedAt: null,
+          },
+        },
+        reactions: {
+          where: {
+            deletedAt: null,
+            user: {
+              deletedAt: null,
+            },
+          },
+        },
         comments: {
+          where: {
+            deletedAt: null,
+            user: {
+              deletedAt: null,
+            },
+          },
           include: {
             user: {
               select: {
@@ -1053,6 +1145,7 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
         },
         boostedPosts: {
           where: {
+            deletedAt: null,
             status: "accepted",
             OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
           },
@@ -1065,8 +1158,22 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
         },
         _count: {
           select: {
-            comments: true,
-            reactions: true,
+            comments: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
+            },
+            reactions: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
+            },
           },
         },
       },
@@ -1079,7 +1186,7 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
       skip,
       take: limit - boostedPosts.length,
       where: {
-        // Exclude already fetched boosted posts
+        deletedAt: null,
         NOT: {
           id: {
             in: boostedPosts.map((p) => p.id),
@@ -1102,7 +1209,11 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
       include: {
-        media: true,
+        media: {
+          where: {
+            deletedAt: null,
+          },
+        },
         author: {
           select: {
             id: true,
@@ -1114,9 +1225,26 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
             isProUser: true,
           },
         },
-        page: true,
-        reactions: true,
+        page: {
+          where: {
+            deletedAt: null,
+          },
+        },
+        reactions: {
+          where: {
+            deletedAt: null,
+            user: {
+              deletedAt: null,
+            },
+          },
+        },
         comments: {
+          where: {
+            deletedAt: null,
+            user: {
+              deletedAt: null,
+            },
+          },
           include: {
             user: {
               select: {
@@ -1131,6 +1259,7 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
         },
         boostedPosts: {
           where: {
+            deletedAt: null,
             status: "accepted",
             OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
           },
@@ -1143,8 +1272,22 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
         },
         _count: {
           select: {
-            comments: true,
-            reactions: true,
+            comments: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
+            },
+            reactions: {
+              where: {
+                deletedAt: null,
+                user: {
+                  deletedAt: null,
+                },
+              },
+            },
           },
         },
       },
@@ -1159,6 +1302,7 @@ router.get("/timeline-enhanced", authentication, async (req, res) => {
     // Get total count
     const total = await prisma.post.count({
       where: {
+        deletedAt: null,
         OR: [
           {
             authorId: {
