@@ -95,7 +95,6 @@ router.post(
       const user = await prisma.user.findFirst({
         where: {
           OR: [{ username: usernameormail }, { email: usernameormail }],
-          deletedAt: null, // Only allow login for non-deleted users
         },
       });
       if (!user) {
