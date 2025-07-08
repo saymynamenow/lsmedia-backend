@@ -157,7 +157,6 @@ router.get("/me", authentication, async (req, res) => {
     const user = await prisma.user.findUnique({
       where: {
         id: userId,
-        deletedAt: null,
       },
       omit: {
         password: true,
