@@ -88,11 +88,9 @@ const handleTokenRefresh = async (req, res, next, refreshToken) => {
       return res.status(401).json({ message: "Invalid refresh token type" });
     }
 
-    // Verify user still exists and is not deleted
     const user = await prisma.user.findUnique({
       where: {
         id: refreshDecoded.userId,
-        deletedAt: null,
       },
       select: {
         id: true,
