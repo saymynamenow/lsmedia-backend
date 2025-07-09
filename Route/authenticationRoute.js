@@ -149,14 +149,14 @@ router.post("/logout", authentication, (req, res) => {
     clearAuthTokens(res);
     req.user = null;
     res.clearCookie("token", {
-      httpOnly: true,
       domain: ".lossantos.cloud",
+      path: "/",
       secure: true,
       sameSite: "none",
     });
     res.clearCookie("refreshToken", {
-      httpOnly: true,
       domain: ".lossantos.cloud",
+      path: "/",
       secure: true,
       sameSite: "none",
     });
