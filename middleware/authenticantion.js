@@ -35,13 +35,11 @@ const generateRefreshToken = (user) => {
 // Helper function for logout - clears both tokens
 const clearAuthTokens = (req, res) => {
   res.clearCookie("token", {
-    domain: ".lossantos.cloud",
     path: "/",
     secure: true,
     sameSite: "none",
   });
   res.clearCookie("refreshToken", {
-    domain: ".lossantos.cloud",
     path: "/",
     secure: true,
     sameSite: "none",
