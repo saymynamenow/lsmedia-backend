@@ -120,7 +120,6 @@ router.post(
         // Set cookies with proper configuration
         res.cookie("token", token, {
           httpOnly: true,
-          domain: ".lossantos.cloud",
           // secure: process.env.NODE_ENV === "production",
           secure: true,
           // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
@@ -130,7 +129,6 @@ router.post(
 
         res.cookie("refreshToken", refreshToken, {
           httpOnly: true,
-          domain: ".lossantos.cloud",
           secure: true,
           sameSite: "none",
           maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
