@@ -440,4 +440,52 @@ router.patch(
   }
 );
 
+// Suggest random users (for discovery/suggestions)
+router.get("/suggestions/random", authentication, async (req, res) => {
+  try {
+    const currentUserId = req.user.userId;
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Count eligible users
+    const total = await prisma.user.count({
+      where: {
+        id: { not: currentUserId },
+        accountStatus: "active",
+        deletedAt: null,
+      },
+    });
+    if (total === 0) {
+      return res.status(200).json({ users: [] });
+    }
+
+    // Get a random offset
+    const maxOffset = Math.max(0, total - limit);
+    const skip = maxOffset > 0 ? Math.floor(Math.random() * maxOffset) : 0;
+
+    const users = await prisma.user.findMany({
+      where: {
+        id: { not: currentUserId },
+        accountStatus: "active",
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        coverPicture: true,
+        profilePicture: true,
+        isVerified: true,
+        bio: true,
+      },
+      skip,
+      take: limit,
+    });
+
+    return res.status(200).json({ users });
+  } catch (error) {
+    console.error("Error fetching random user suggestions:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 export { router as userRoute };
