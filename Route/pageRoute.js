@@ -1660,6 +1660,7 @@ router.get(
         where: {
           pageId: pageId,
           type: "page",
+          deletedAt: null,
         },
         include: {
           page: {
