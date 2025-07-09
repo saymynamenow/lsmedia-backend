@@ -120,6 +120,7 @@ router.post(
         // Set cookies with proper configuration
         res.cookie("token", token, {
           httpOnly: true,
+          domain: ".lossantos.cloud",
           // secure: process.env.NODE_ENV === "production",
           secure: true,
           // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
@@ -129,6 +130,7 @@ router.post(
 
         res.cookie("refreshToken", refreshToken, {
           httpOnly: true,
+          domain: ".lossantos.cloud",
           secure: true,
           sameSite: "none",
           maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -145,6 +147,19 @@ router.post(
 router.post("/logout", authentication, (req, res) => {
   try {
     clearAuthTokens(res);
+    req.user = null;
+    res.clearCookie("token", {
+      httpOnly: true,
+      domain: ".lossantos.cloud",
+      secure: true,
+      sameSite: "none",
+    });
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      domain: ".lossantos.cloud",
+      secure: true,
+      sameSite: "none",
+    });
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
     console.error("Error during logout:", error);
@@ -158,6 +173,7 @@ router.get("/me", authentication, async (req, res) => {
     const user = await prisma.user.findUnique({
       where: {
         id: userId,
+        deletedAt: null,
       },
       omit: {
         password: true,
