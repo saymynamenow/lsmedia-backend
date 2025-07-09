@@ -39,6 +39,7 @@ enum Gender {
   male
   female
   other
+  prefer_not_to_say
 }
 
 enum Status {
@@ -96,7 +97,7 @@ model User {
   email              String        @unique
   password           String
   name               String
-  bio                String?
+  bio                String? @db.LongText
   gender             Gender?
   birthdate          DateTime?
   location           String?
