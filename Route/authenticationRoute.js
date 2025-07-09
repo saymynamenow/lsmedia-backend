@@ -144,7 +144,7 @@ router.post(
   }
 );
 
-router.post("/logout", authentication, (req, res) => {
+router.post("/logout", (req, res) => {
   try {
     clearAuthTokens(res);
     req.user = null;
