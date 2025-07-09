@@ -309,7 +309,7 @@ model Page {
   posts         Post[]         @relation("PagePosts")
   notifications Notification[]
   reports       Report[]       @relation("PageReports")
-
+  
   @@index([deletedAt])
   @@map("page")
 }

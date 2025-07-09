@@ -120,10 +120,10 @@ router.post(
         // Set cookies with proper configuration
         res.cookie("token", token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          // secure: true,
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-          // sameSite: "none",
+          // secure: process.env.NODE_ENV === "production",
+          secure: true,
+          // sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          sameSite: "none",
           maxAge: 60 * 60 * 1000, // 15 minutes
         });
 
@@ -142,7 +142,7 @@ router.post(
   }
 );
 
-router.post("/logout", (req, res) => {
+router.post("/logout", authentication, (req, res) => {
   try {
     clearAuthTokens(res);
     return res.status(200).json({ message: "Logout successful" });
