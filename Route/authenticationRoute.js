@@ -146,20 +146,7 @@ router.post(
 
 router.post("/logout", (req, res) => {
   try {
-    clearAuthTokens(res);
-    req.user = null;
-    res.clearCookie("token", {
-      domain: ".lossantos.cloud",
-      path: "/",
-      secure: true,
-      sameSite: "none",
-    });
-    res.clearCookie("refreshToken", {
-      domain: ".lossantos.cloud",
-      path: "/",
-      secure: true,
-      sameSite: "none",
-    });
+    clearAuthTokens(req, res);
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
     console.error("Error during logout:", error);
