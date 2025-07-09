@@ -9,6 +9,7 @@ const generateAccessToken = (user) => {
       email: user.email,
       username: user.username,
       isAdmin: user.isAdmin || false,
+      isProUser: user.isProUser || false,
     },
     process.env.JWT_SECRET,
     { expiresIn: "1h" } // Short-lived access token
@@ -23,6 +24,7 @@ const generateRefreshToken = (user) => {
       email: user.email,
       username: user.username,
       isAdmin: user.isAdmin || false,
+      isProUser: user.isProUser || false,
       type: "refresh",
     },
     process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
@@ -97,6 +99,7 @@ const handleTokenRefresh = async (req, res, next, refreshToken) => {
         email: true,
         username: true,
         isAdmin: true,
+        isProUser: true,
       },
     });
 
@@ -112,6 +115,7 @@ const handleTokenRefresh = async (req, res, next, refreshToken) => {
       email: user.email,
       username: user.username,
       isAdmin: user.isAdmin || false,
+      isProUser: user.isProUser || false,
     };
 
     const newAccessToken = generateAccessToken(userData);
@@ -132,12 +136,12 @@ const handleTokenRefresh = async (req, res, next, refreshToken) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    // Set user data for the request
     req.user = {
       userId: user.id,
       email: user.email,
       username: user.username,
       isAdmin: user.isAdmin || false,
+      isProUser: user.isProUser || false,
     };
 
     req.tokensRefreshed = true; // Flag to indicate tokens were refreshed

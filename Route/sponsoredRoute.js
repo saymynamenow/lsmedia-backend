@@ -341,6 +341,7 @@ router.post(
 
       const { title, content, startDate, endDate } = req.body;
       const uploadedFile = req.file;
+      console.log(uploadedFile);
 
       // Prepare the image URL
       let imageUrl = null;

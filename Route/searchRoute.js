@@ -52,6 +52,7 @@ router.get(
               { username: { contains: q } },
               { bio: { contains: q } },
             ],
+            deletedAt: null,
             accountStatus: "active",
           },
           select: {
@@ -136,6 +137,7 @@ router.get(
               { description: { contains: q } },
               { category: { contains: q } },
             ],
+            deletedAt: null,
             isPublic: true,
           },
           select: {
@@ -218,6 +220,7 @@ router.get(
         const posts = await prisma.post.findMany({
           where: {
             content: { contains: q },
+            deletedAt: null,
           },
           select: {
             id: true,
@@ -324,6 +327,7 @@ router.get(
         where: {
           OR: [{ name: { contains: q } }, { username: { contains: q } }],
           accountStatus: "active",
+          deletedAt: null,
         },
         select: {
           id: true,
@@ -341,6 +345,7 @@ router.get(
         where: {
           OR: [{ name: { contains: q } }, { category: { contains: q } }],
           isPublic: true,
+          deletedAt: null,
         },
         select: {
           id: true,
@@ -437,6 +442,7 @@ router.get(
               { username: { contains: q } },
               { bio: { contains: q } },
             ],
+            deletedAt: null,
             accountStatus: "active",
           },
           select: {
@@ -473,6 +479,7 @@ router.get(
               { username: { contains: q } },
               { bio: { contains: q } },
             ],
+            deletedAt: null,
             accountStatus: "active",
           },
         }),
@@ -627,6 +634,7 @@ router.get(
           where: {
             userId: currentUserId,
             pageId: { in: pageIds },
+            deletedAt: null,
           },
           select: { pageId: true, role: true },
         }),
@@ -721,6 +729,7 @@ router.get(
       // Build search conditions
       const searchConditions = {
         content: { contains: q },
+        deletedAt: null,
       };
 
       if (type) {
@@ -796,5 +805,7 @@ router.get(
     }
   }
 );
+
+// Get all pages the authenticated user follows
 
 export { router as searchRouter };

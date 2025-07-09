@@ -225,7 +225,7 @@ router.get("/", async (req, res) => {
           post: {
             deletedAt: null,
           },
-          //   OR: [{ endDate: null }, { endDate: { gt: new Date() } }], HERE
+          OR: [{ endDate: null }, { endDate: { gt: new Date() } }],
         },
         skip,
         take: limit,

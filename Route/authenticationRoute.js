@@ -110,6 +110,7 @@ router.post(
           email: user.email,
           username: user.username,
           isAdmin: user.isAdmin,
+          isProUser: user.isProUser,
         };
 
         // Generate tokens using the helper functions

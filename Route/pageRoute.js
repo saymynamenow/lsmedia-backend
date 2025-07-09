@@ -4,6 +4,7 @@ import prisma from "../config/prismaConfig.js";
 import { authentication } from "../middleware/authenticantion.js";
 import { upload, uploadPostMedia } from "../config/multer.js";
 import { NotificationService } from "../services/notificationService.js";
+import { SoftDeleteService } from "../services/softDeleteService.js";
 
 const router = express.Router();
 
@@ -193,29 +194,87 @@ router.get(
     }
   }
 );
-router.get("/followed", async (req, res) => {
+router.get("/followed", authentication, async (req, res) => {
   try {
     const userId = req.user.userId;
+    const limit = parseInt(req.query.limit) || 20;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
 
-    // Get followed pages
-    const followedPages = await prisma.pageFollower.findMany({
-      where: { userId },
-      include: {
-        page: {
-          select: {
-            id: true,
-            name: true,
-            profileImage: true,
-            isVerified: true,
-            category: true,
-            coverImage: true,
+    // Get followed page IDs
+    const followed = await prisma.pageFollower.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+      },
+      select: { pageId: true },
+    });
+    const pageIds = followed.map((f) => f.pageId);
+
+    if (pageIds.length === 0) {
+      return res.status(200).json({
+        pages: [],
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          totalCount: 0,
+          hasMore: false,
+        },
+      });
+    }
+
+    // Get page info
+    const [pages, totalCount] = await Promise.all([
+      prisma.page.findMany({
+        where: {
+          id: { in: pageIds },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          category: true,
+          profileImage: true,
+          isVerified: true,
+          ownerId: true,
+          owner: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+              profilePicture: true,
+              isVerified: true,
+            },
+          },
+          _count: {
+            select: {
+              followers: true,
+              members: true,
+              posts: true,
+            },
           },
         },
-      },
-    });
+        skip,
+        take: limit,
+        orderBy: [{ isVerified: "desc" }, { name: "asc" }],
+      }),
+      prisma.page.count({
+        where: {
+          id: { in: pageIds },
+          deletedAt: null,
+        },
+      }),
+    ]);
 
     return res.status(200).json({
-      followedPages,
+      pages,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        totalCount,
+        hasMore: skip + pages.length < totalCount,
+      },
     });
   } catch (error) {
     console.error("Error fetching followed pages:", error);
@@ -262,7 +321,11 @@ router.get(
 
       const [pages, totalPages] = await Promise.all([
         prisma.page.findMany({
-          where,
+          where: {
+            ...where,
+            isPublic: true,
+            deletedAt: null,
+          },
           include: {
             owner: {
               select: {
@@ -351,12 +414,29 @@ router.post(
 
       const { name, description, category, isPublic } = req.body;
       const ownerId = req.user.userId;
+      const ownerData = req.user;
+      const pageCount = await prisma.page.count({
+        where: { ownerId, deletedAt: null },
+      });
+      console.log("Page count for user:", ownerData);
+      if (!ownerData.isProUser && pageCount >= 3) {
+        return res.status(400).json({
+          message: "You can only create up to 3 pages",
+        });
+      }
+
+      if (ownerData.isProUser && pageCount >= 6) {
+        return res.status(400).json({
+          message: "You can only create up to 6 pages as a Pro user",
+        });
+      }
 
       // Check if user already owns a page with the same name
       const existingPage = await prisma.page.findFirst({
         where: {
           name: { equals: name.trim() },
           ownerId,
+          deletedAt: null,
         },
       });
 
@@ -375,7 +455,7 @@ router.post(
         name: name.trim(),
         description: description?.trim() || null,
         category: category?.trim() || null,
-        isPublic: isPublic === "true" || isPublic === true,
+        isPublic: true,
         ownerId,
       };
 
@@ -999,6 +1079,61 @@ router.get(
   }
 );
 
+router.patch(
+  "/changevisibility/:pageId",
+  [param("pageId").notEmpty().withMessage("Page ID is required")],
+  authentication,
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+      const { pageId } = req.params;
+      const userId = req.user.userId;
+      const { isPublic } = req.body;
+      if (typeof isPublic !== "boolean") {
+        return res.status(400).json({ message: "isPublic must be a boolean" });
+      }
+
+      const page = await prisma.page.findUnique({
+        where: { id: pageId },
+      });
+      if (!page) {
+        return res.status(404).json({ message: "Page not found" });
+      }
+
+      const isAdminOrOwner = await prisma.pageMember.findFirst({
+        where: {
+          userId: userId,
+          pageId: pageId,
+          status: "accepted",
+          role: { in: ["admin", "owner"] },
+        },
+      });
+
+      if (!isAdminOrOwner) {
+        return res.status(403).json({
+          message: "You don't have permission to change page visibility ",
+        });
+      }
+
+      const updatedPage = await prisma.page.update({
+        where: { id: pageId },
+        data: {
+          isPublic: isPublic,
+        },
+      });
+
+      res.status(200).json({
+        updatedPage,
+      });
+    } catch (error) {
+      console.error("Error changing page visibility:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
 // Approve a join request (admin/moderator/owner only)
 router.patch(
   "/:pageId/approve-request/:userId",
@@ -1389,9 +1524,7 @@ router.delete(
       }
 
       // Delete page
-      await prisma.page.delete({
-        where: { id: pageId },
-      });
+      SoftDeleteService.softDeletePage(pageId);
 
       return res.status(200).json({ message: "Page deleted successfully" });
     } catch (error) {
