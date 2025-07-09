@@ -47,7 +47,7 @@ try {
   console.error("❌ Error reading uploads directory:", error.message);
 }
 
-const allowedOrigins = ["https://vb.lossantos.cloud", "http://localhost:5173"];
+const allowedOrigins = ["https://vb.lossantos.cloud"];
 app.use(
   cors({
     origin: function (origin, callback) {
