@@ -298,7 +298,7 @@ router.get(
 router.patch(
   "/editcover/:userId",
   upload.fields([{ name: "coverPicture", maxCount: 1 }]),
-  [param("userId").isUUID().withMessage("Valid User ID is required")],
+  [param("userId").notEmpty().withMessage("Valid User ID is required")],
   authentication,
   async (req, res) => {
     try {
