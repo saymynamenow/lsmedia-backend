@@ -225,7 +225,7 @@ router.patch(
       }
 
       const { id } = req.params;
-      const { title, content, startDate, endDate } = req.body;
+      const { title, content, startDate, endDate, link } = req.body;
       const uploadedFile = req.file;
 
       // Check if the post exists
@@ -247,6 +247,7 @@ router.patch(
       if (content !== undefined) updateData.content = content;
       if (startDate !== undefined) updateData.startDate = new Date(startDate);
       if (endDate !== undefined) updateData.endDate = new Date(endDate);
+      if (link !== undefined) updateData.link = link;
 
       // Handle image upload
       if (uploadedFile) {

@@ -1,7 +1,7 @@
 import express from "express";
 import prisma from "../config/prismaConfig.js";
 import { body, query, param, validationResult } from "express-validator";
-import { upload } from "../config/multer.js";
+import { upload, uploadIdCard } from "../config/multer.js";
 import { authentication } from "../middleware/authenticantion.js";
 const router = express.Router();
 
@@ -440,52 +440,91 @@ router.patch(
   }
 );
 
-// Suggest random users (for discovery/suggestions)
-router.get("/suggestions/random", authentication, async (req, res) => {
-  try {
-    const currentUserId = req.user.userId;
-    const limit = parseInt(req.query.limit) || 10;
+router.get(
+  "/:id/idcard",
+  [param("id").notEmpty().withMessage("Valid User ID is required")],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
-    // Count eligible users
-    const total = await prisma.user.count({
-      where: {
-        id: { not: currentUserId },
-        accountStatus: "active",
-        deletedAt: null,
-      },
-    });
-    if (total === 0) {
-      return res.status(200).json({ users: [] });
+      const userId = req.params.id;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          username: true,
+          idCard: true,
+        },
+      });
+
+      if (!user || !user.idCard) {
+        return res.status(404).json({ message: "ID card not found" });
+      }
+
+      res.status(200).json({
+        message: "ID card retrieved successfully",
+        idCard: user.idCard,
+      });
+    } catch (error) {
+      console.error("Error fetching ID card:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
-
-    // Get a random offset
-    const maxOffset = Math.max(0, total - limit);
-    const skip = maxOffset > 0 ? Math.floor(Math.random() * maxOffset) : 0;
-
-    const users = await prisma.user.findMany({
-      where: {
-        id: { not: currentUserId },
-        accountStatus: "active",
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        username: true,
-        name: true,
-        coverPicture: true,
-        profilePicture: true,
-        isVerified: true,
-        bio: true,
-      },
-      skip,
-      take: limit,
-    });
-
-    return res.status(200).json({ users });
-  } catch (error) {
-    console.error("Error fetching random user suggestions:", error);
-    res.status(500).json({ message: "Internal server error" });
   }
-});
+);
+
+router.patch(
+  "/changeidcard/:id",
+  uploadIdCard.single("idCard"),
+  [
+    param("id").notEmpty().withMessage("Valid User ID is required"),
+    body("username").notEmpty().withMessage("Username is required"),
+  ],
+  authentication,
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const username = req.body.username;
+      const userId = req.params.id;
+      const currentUserId = req.user.userId;
+
+      // Check if user is trying to update their own profile or is admin
+      if (userId !== currentUserId && !req.user.isAdmin) {
+        return res
+          .status(403)
+          .json({ message: "You can only update your own profile" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "ID card image is required" });
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { idCard: req.file.filename },
+        select: {
+          id: true,
+          username: true,
+          idCard: true,
+          updatedAt: true,
+        },
+      });
+
+      res.status(200).json({
+        message: "ID card updated successfully",
+        user: updatedUser,
+      });
+    } catch (error) {
+      console.error("Error updating ID card:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
 
 export { router as userRoute };

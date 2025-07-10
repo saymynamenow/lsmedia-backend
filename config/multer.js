@@ -63,8 +63,8 @@ const idCardStorage = multer.diskStorage({
     cb(null, idCardDir);
   },
   filename: (req, file, cb) => {
-    // Use username as filename with original extension
     const username = req.body.username;
+    console.log("🔍 ID card filename generation called - Username:", username);
     if (!username) {
       return cb(new Error("Username is required for ID card upload"));
     }

@@ -336,6 +336,10 @@ router.get(
                 isVerified: true,
               },
             },
+            followers: {
+              where: { deletedAt: null },
+              select: { userId: true },
+            },
             _count: {
               select: {
                 members: true,

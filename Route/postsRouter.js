@@ -540,6 +540,21 @@ router.delete(
         return res.status(400).json({ errors: errors.array() });
       }
       const postId = req.params.id;
+      const postDetail = await prisma.post.findUnique({
+        where: { id: postId, deletedAt: null },
+        select: {
+          authorId: true,
+        },
+      });
+      const author = req.user;
+      if (!postDetail) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      if (postDetail.authorId !== author.userId && !author.isAdmin) {
+        return res
+          .status(403)
+          .json({ message: "You do not have permission to delete this post" });
+      }
       const post = await SoftDeleteService.softDeletePost(postId);
       res.status(200).json({ message: "Post deleted successfully", post });
     } catch (error) {

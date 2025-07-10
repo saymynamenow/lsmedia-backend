@@ -54,6 +54,7 @@ enum AccountStatus {
   pending
   inactive
   suspended
+  rejected
   deleted
 }
 
@@ -289,7 +290,7 @@ model Friendship {
 model Page {
   id           String    @id @default(cuid())
   name         String
-  description  String?
+  description  String? 
   coverImage   String?   @db.LongText
   profileImage String?   @db.LongText
   ownerId      String
